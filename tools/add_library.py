@@ -6,6 +6,7 @@ import configparser
 import urllib.request
 import urllib.parse
 import urllib.error
+from bs4 import BeautifulSoup
 
 LIBDIR = 'opacclient/opacapp/src/main/assets/bibs/'
 TYPES = [
@@ -13,7 +14,8 @@ TYPES = [
         'GAME_CONSOLE', 'EBOOK', 'SCORE_MUSIC', 'PACKAGE_BOOKS', 'UNKNOWN', 'NEWSPAPER',
         'BOARDGAME', 'SCHOOL_VERSION', 'MAP', 'BLURAY', 'AUDIO_CASSETTE', 'ART', 'MAGAZINE',
         'GAME_CONSOLE_WII', 'GAME_CONSOLE_NINTENDO', 'GAME_CONSOLE_PLAYSTATION',
-        'GAME_CONSOLE_XBOX', 'LP_RECORD', 'MP3', 'URL', 'EVIDEO','EDOC','EAUDIO']
+        'GAME_CONSOLE_XBOX', 'LP_RECORD', 'MP3', 'URL', 'EVIDEO','EDOC','EAUDIO',
+        'DEVICE', 'MICROFORM']
 
 
 def getInput(required=False, default=None):
@@ -41,10 +43,10 @@ def loadGeoPossibilities(data):
             urllib.parse.urlencode({'address': address, 'sensor': 'true'})
         jsoncontent = urllib.request.urlopen(uri).read().decode()
         geocode = json.loads(jsoncontent)
-        
+
         if geocode['status'] != 'OK':
             print("ERROR!")
-            
+
         for res in geocode['results']:
             possibilities.append(
                     (
@@ -167,9 +169,7 @@ class Bibliotheca(Api):
             elif key == 'ausleihstelle':
                 data['accounttable']['lendingbranch'] = i_acc
                 i_acc += 1
-            elif key == 'mediengrp':
-                i_acc += 1
-            elif key == 'reserviert':
+            elif key == 'mediengrp' or key == 'reserviert' or key == 'saeumnisgebuehr':
                 i_acc += 1
             elif key == 'bereit bis':
                 data['reservationtable']['expirationdate'] = i_res
@@ -208,8 +208,10 @@ class Bibliotheca(Api):
 
         data['mediatypes'] = {}
         for i in range(1, 100):
+            if not config.has_option("ANZEIGE_MEDIGRPPIC", "MEDIGRPPIC" + str(i)):
+                continue
             conf = config.get("ANZEIGE_MEDIGRPPIC", "MEDIGRPPIC" + str(i))
-            if conf == '':
+            if conf == '' or conf is None:
                 continue
             split = conf.split("#")
             data['mediatypes'][split[1]] = split[2]
@@ -242,7 +244,7 @@ class WebOpacNet(Api):
 class WinBiap(Api):
 
     def accountSupported(self):
-        return False
+        return True
 
 class Adis(Api):
 
@@ -277,7 +279,7 @@ class VuFind(Api):
     def accountSupported(self):
         return False
 
-class Zones22(Api):
+class Zones(Api):
 
     def accountSupported(self):
         return False
@@ -314,12 +316,49 @@ class IOpac(Api):
     def accountSupported(self):
         return True
 
+class Littera(Api):
+
+    def accountSupported(self):
+        return False
+
+class Open(Api):
+
+    def accountSupported(self):
+        return False
+
+    def prompt(self, data):
+        data['data']['urls'] = {}
+        baseurl = data['data']['baseurl'] + '/'
+        try:
+            html = urllib.request.urlopen(baseurl).read().decode('utf-8')
+            doc = BeautifulSoup(html, 'html.parser')
+            elems = doc.select('#dnn_dnnNAV_ctldnnNAV li a')
+            for elem in elems:
+                name = elem.get_text()
+                if name in ('Einfache Suche'):
+                    data['data']['urls']['simple_search'] = elem['href'].replace(baseurl, '')
+                elif name in ('Erweiterte Suche', 'Profisuche'):
+                    data['data']['urls']['advanced_search'] = elem['href'].replace(baseurl, '')
+        except urllib.error.HTTPError:
+            pass
+
+        if not 'simple_search' in data['data']['urls']:
+            print("URL für Einfache Suche?")
+            data['data']['urls']['simple_search'] = getInput(required=True)
+
+        if not 'advanced_search' in data['data']['urls']:
+            print("URL für Erweiterte Suche?")
+            data['data']['urls']['advanced_search'] = getInput(required=True)
+
+        return data
+
+
 APIS = {
     'bibliotheca' : Bibliotheca,
     'sisis'       : Sisis,
     'touchpoint'  : TouchPoint,
     'biber1992'   : Biber1992,
-    'zones22'     : Zones22,
+    'zones'     : Zones,
     'iopac'       : IOpac,
     'pica'        : Pica,
     'adis'        : Adis,
@@ -327,6 +366,8 @@ APIS = {
 	'winbiap'	  : WinBiap,
     'vufind'      : VuFind,
     'primo'       : Primo,
+    'open'        : Open,
+    'web-opac.at' : Littera,
 }
 
 data = {}
@@ -356,7 +397,7 @@ if __name__ == '__main__':
     print("Dies sollte etwas in dieser Stadt eindeutiges sein wie 'Stadtbibliothek', 'Unibibliothek' oder 'Ruprecht-Karls-Universität'. Der Name der Stadt soll nicht erneut vorkommen!")
 
     data['title'] = getInput(default="Stadtbibliothek")
-    
+
     print("Lade Geodaten...")
 
     geo = loadGeoPossibilities(data)
@@ -413,5 +454,7 @@ if __name__ == '__main__':
             ok = True;
 
     print(json.dumps(data, indent=4, sort_keys=True), end="\n\n")
-    json.dump(data, open(LIBDIR + ident + '.json', 'w'), sort_keys=True, indent=4)
+    with open(LIBDIR + ident + '.json', 'w') as fp:
+       json.dump(data, fp, sort_keys=True, indent=4)
+       fp.write("\n")
     print("In Datei %s geschrieben." % (LIBDIR + ident + '.json'))

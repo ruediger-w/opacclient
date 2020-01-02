@@ -31,9 +31,10 @@
     <string name="no_warranty">Sağlanan tüm bilgiler için sorumluluk kabul edilmemektedir.</string>
     <string name="lent_head">ÖDÜNÇ ALINANLAR</string>
     <string name="reservations_head">REZERVASYONLAR</string>
-    <string name="entl_none">Ödünç alınmış bir şey yok</string>
+    <string name="lent_none">Ödünç alınmış bir şey yok</string>
     <string name="reservations_none">Rezerve edilmiş bir şey yok</string>
     <string name="cancel_confirm">Rezervasyon iptal edilsin mi?</string>
+    <string name="prolong_confirm">Bu ögenin süresini uzatmak istediğinizden emin misiniz?</string>
     <string name="yes">Evet</string>
     <string name="no">Hayır</string>
     <string name="cancel">İptal</string>
@@ -42,7 +43,7 @@
     <string name="doing_cancel">Rezervasyon iptal ediliyor…</string>
     <string name="doing_prolong">Uzatılıyor…</string>
     <string name="doing_download">İndirme bilgisi alınıyor…</string>
-    <string name="reader_needed">Bir e-kitap okuyabilmek için ayrı bir uygulama kullanmalısınız. Zaten bir uygulamanız varsa \'Yoksay\' butonuna tıklayınız ve bu mesaj bir daha gösterilmeyecek. Play Store\'u açığ Bluefire Reader uygulamasını indirmek için \'İndir\' butonuna tıklayınız.</string>
+    <string name="reader_needed">Bir e-kitap okuyabilmek için ayrı bir uygulama kullanmalısınız. Zaten bir uygulamanız varsa \'Yoksay\' butonuna tıklayınız ve bu mesaj bir daha gösterilmeyecek. Play Store\'u açığ Aldiko uygulamasını indirmek için \'İndir\' butonuna tıklayınız.</string>
     <string name="reader_needed_ignore">Yoksay</string>
     <string name="doing_prolong_all">Uzatılması mümkün olan tüm medyaların süresi uzatılıyor…</string>
     <string name="prolong_all_confirm">Hesabınızdaki (uzatılabilir) tüm öğeleri uzatmak istediğinizden emin misiniz? Bu işlem bazı kütüphanelerde ücretli olabilir.</string>
@@ -59,18 +60,12 @@
     <string name="notification_service">Süresi Yaklaşanlar</string>
     <string name="notification_service_desc">Bir öğrenin geri verme zamanı gelmeden bana bildir (Bu özelliğin garantisi yoktur)</string>
     <string name="notification_service_wifionly">Sadece WiFi üzerinden kontrol et</string>
-    <string name="notification_service_wifionly_desc">Mobil ağlar üzerinden bilgi indirilmez. WiFi olmadan bildirim de alınamaz.</string>
+    <string name="notification_service_wifionly_desc">Mobil ağ üzerinden bilgi indirilmiyor. Eğer uzun süre WiFi bağlantısız devam edersiniz bazı bildirimleri kaçırabilirsiniz.</string>
     <string-array name="warning">
         <item>Aynı gün</item>
         <item>1 gün önce</item>
         <item>3 gün önce</item>
         <item>1 hafta önce</item>
-    </string-array>
-    <string-array name="warning_n">
-        <item>86400000</item>
-        <item>172800000</item>
-        <item>259200000</item>
-        <item>604800000</item>
     </string-array>
     <string name="startup_title">Başlangıç ekranı</string>
     <string name="startup_summary">Başlangıçta hangi ekran gösterilsin?</string>
@@ -88,27 +83,34 @@
     </string-array>
     <string name="notification_warning">Uyarı periyodu</string>
     <string name="notification_warning_desc">Zaman dolmadan ne kadar önce bildirim almak istersiniz?</string>
-    <string name="notif_ticker">%s öğenin geri verme zamanı yaklaştı!</string>
+    <plurals name="notif_ticker">
+        <item quantity="one">%d öğenin geri verme zamanı yaklaştı!</item>
+        <item quantity="other">%d öğenin geri verme zamanı yaklaştı!</item>
+    </plurals>
     <string name="notif_title">Öğelerin geri verme zamanı yaklaştı</string>
+    <string name="notif_title_expired">Zamanı geçen ögeler</string>
+    <string name="notif_plus_more">+%d daha</string>
+    <string name="notif_snooze">Sonra</string>
+    <string name="notif_dont_remind_again">Yoksay</string>
     <string name="volumes">KİTAPLAR</string>
     <string name="volumesearch">Kitapları göster</string>
     <string name="star">Favorilere kaydet</string>
     <string name="starred">Öğe favori listenize eklendi.</string>
     <string name="star_wait">Lütfen ayrıntıların yüklenmesini bekleyin!</string>
+    <string name="star_unsupported">Bu ögeyi listenize eklemek için yeterli bilgi edinemedik.</string>
     <string name="starred_welcome">Bu sizin favori listenizdir. Ayrıntılar sayfasındaki yıldıza tıklayarak öğeleri bu listeye ekleyebilirsiniz. Kullandığınız her kütüphane için ayrı liste tutulmaktadır.</string>
     <string name="share">Paylaş</string>
     <string name="share_wait">Lütfen ayrıntıların yüklenmesini bekleyin</string>
     <string name="share_notsupported">Bu kütüphanede desteklenmiyor</string>
     <string name="unsupported">Desteklenmiyor</string>
-    <string name="account_unsupported_api">Bu özellik henüz kütüphanenizde desteklenmiyor. Bu özelliğin eklenmesi için okurların yardımına ihtiyacımız olabilir, ilgileniyorsanız bize e-posta atın: info@opacapp.de</string>
-  <string name="account_unsupported">Bu özellik henüz kütüphanenizde desteklenmiyor. Bunu değiştirmek için bu kütüphanenin okurlarının yardımına ihtiyacımız var. Eğer \"Rapor gönder\" butonuna tıklarsanız, gelecek güncellemede bunu düzeltebiliriz.
-Rapor gönderdiğinizde bazı verileriniz bize gelir (bu veriler kütüphane şifrenizi içermez). Sorun çözüldükten sonra bu verileri hemen sileceğiz.</string>
+    <string name="account_unsupported_api">Bu özellik henüz kütüphanenizde desteklenmiyor.</string>
     <string name="write_mail">E-posta yaz</string>
     <string name="info_error">Bu kütüphane için ek bilgi yüklenemiyor</string>
     <string name="info_unsupported">Bu kütüphane için gösterek bilgi bulunmuyor</string>
     <string name="connection_error_detail">Kütüphane sunucusuna bağlantı başarısız oldu. Lütfen internet bağlantınızı kontrol edin. Eğer hata devam ederse kütüphane sunucusunda bir sorun olabilir veya uygulama kütüphane sunucusundan gelen cevabı okuyamıyor olabilir.</string>
     <string name="connection_error_detail_nre">Kütüphane sunucusuna bağlantı başarısız oldu. Lütfen internet bağlantınızı kontrol edin. Eğer hata devam ederse kütüphane sunucusunda bir sorun olabilir.</string>
     <string name="retry">Tekrar deneyin</string>
+    <string name="connection_error_detail_security">Kütüphane sunucusuna güvenli bağlantı başarısız oldu. Lütfen tekrar deneyin. Eğer sorun devam ediyorsa bağlantınızı engelleyen biri olabilir. Lütfen başka WiFi ağlarında da aynı sorun devam ederse https://opac.app/en/support/ e-posta adresi ile iletişime geçin.</string>
     <string name="default_account_name">İsimsiz hesap</string>
     <string name="title_activity_account_list">Hesaplar</string>
     <string name="account_add">Hesap ekle</string>
@@ -164,9 +166,11 @@ Rapor gönderdiğinizde bazı verileriniz bize gelir (bu veriler kütüphane şi
         <item quantity="one">Bir arama sonucu</item>
         <item quantity="other">%d arama sonucu</item>
     </plurals>
-    <string name="export_starred">Dışa aktar</string>
+    <string name="share_starred">Dışa aktar</string>
+    <string name="export_account">Yazı olarak paylaş</string>
     <string name="geolocate">Yakındaki kütüphaneleri bul</string>
     <string name="geolocate_progress">Yeriniz bulunuyor…</string>
+    <string name="geolocate_not_available">Bu cihazda konum bilgisine ulaşılamıyor. Ayarlardan konumu açmayı deneyebilirsiniz.</string>
     <string name="alphabetic_list">Tüm listeyi göster.</string>
     <string name="setting_nfc">NFC-Arama</string>
     <string name="setting_nfc_desc">Deneysel özellik. Sadece bazı cihaz ve kütüphanelerde çalışır.</string>
@@ -194,7 +198,6 @@ Rapor gönderdiğinizde bazı verileriniz bize gelir (bu veriler kütüphane şi
     <string name="select_mail_app">E-posta uygulaması seç…</string>
     <string name="search_libraries_hint">Kütüphane ara…</string>
     <string name="action_search">Arama</string>
-    <string name="snooze">Yarın tekrar hatırlat</string>
     <string name="expand">Daha fazla arama alanı göster</string>
     <string name="collapse">Daha az arama alanı göster</string>
     <string name="interested_to_help">Yardım etmek istiyorum</string>
@@ -216,4 +219,42 @@ Rapor gönderdiğinizde bazı verileriniz bize gelir (bu veriler kütüphane şi
     <string name="support_search">Sadece arama</string>
     <string name="meta_clear_title">Önbelleği temizle</string>
     <string name="meta_clear">Önbellekteki verileri siler</string>
+    <string name="meta_run_check">Senkronizasyon servisini çalıştır</string>
+    <string name="version">Sürüm</string>
+    <string name="website">Web sayfası</string>
+    <string name="website_url">www.opacapp.net</string>
+    <string name="developer">Geliştirici</string>
+    <string name="feedback">Geri bildirim</string>
+    <string name="rate">Uygulamayı oylayın</string>
+    <string name="other">Diğer</string>
+    <string name="source">Kaynak Kodu</string>
+    <string name="loading">Yükleniyor...</string>
+    <string name="loading_libraries">Kütüphane listesi yükleniyor...</string>
+    <string name="updating_libraries">Güncellenen kütüphane listesi yükleniyor…</string>
+    <string name="shelfmark">Raf kodu</string>
+    <string name="url">URL</string>
+    <string name="return_date">Dönüş tarihi</string>
+    <string name="location">Konum</string>
+    <string name="department">Departman</string>
+    <string name="reservations">Rezervasyonlar</string>
+    <string name="barcode">Barkod</string>
+    <string name="clear_search">formu temizle</string>
+    <string name="title">Başlık</string>
+    <string name="author">Yazar</string>
+    <string name="title_and_author">Başlık ve Yazar</string>
+    <string name="go_to_details">Ayrıntılara git</string>
+    <string name="no_thanks">Hayır teşekkürler</string>
+    <string name="do_not_ask_again">Tekrar gösterme</string>
+    <string name="reservation_fee_continue">Devam</string>
+    <string name="notification_repeat">Bildirimleri tekrarla</string>
+    <string name="accountdata_title">Başlık</string>
+    <string name="accountdata_author">Yazar</string>
+    <string name="accountdata_format">Medya türü</string>
+    <string name="accountdata_status">Durum</string>
+    <string name="accountdata_lent_barcode">Barkod</string>
+    <string name="accountdata_lent_deadline">Dönüş tarihi</string>
+    <string name="toggle_notice_button">Anladım</string>
+    <string name="starred_removed">Favorilerden silindi</string>
+    <string name="starred_removed_undo">Geri al</string>
+    <string name="print">Yazdır</string>
 </resources>

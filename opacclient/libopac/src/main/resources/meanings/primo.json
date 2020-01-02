@@ -1,0 +1,23 @@
+{
+	"#exlidInput_mediaType_": "CATEGORY",
+	"#exlidSearchIn": "BRANCH",
+	"creator": "AUTHOR",
+	"title": "TITLE",
+	"any": "FREE",
+	"sub": "KEYWORD",
+	"isbn": "ISBN",
+	"cdate": "YEAR",
+	"lsr05": "SYSTEM",
+	"lsr10": "SYSTEM",
+	"lsr39": "SYSTEM",
+	"lsr11": "SYSTEM",
+	"lsr36": "SYSTEM",
+	"lsr34": "PUBLISHER",
+	"lsr04": "PUBLISHER",
+	"lsr08": "PUBLISHER",
+	"lsr31": "LOCATION",
+	"lsr12": "LOCATION",
+	"lsr41": "LOCATION",
+	"general": "PUBLISHER",
+	"ftext": "FREE"
+}

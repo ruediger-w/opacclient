@@ -28,15 +28,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import de.geeksfactory.opacclient.NotReachableException;
 import de.geeksfactory.opacclient.i18n.StringProvider;
+import de.geeksfactory.opacclient.networking.HttpClientFactory;
+import de.geeksfactory.opacclient.networking.NotReachableException;
 import de.geeksfactory.opacclient.objects.Account;
 import de.geeksfactory.opacclient.objects.AccountData;
-import de.geeksfactory.opacclient.objects.DetailledItem;
+import de.geeksfactory.opacclient.objects.DetailedItem;
 import de.geeksfactory.opacclient.objects.Filter;
 import de.geeksfactory.opacclient.objects.Library;
 import de.geeksfactory.opacclient.objects.SearchRequestResult;
-import de.geeksfactory.opacclient.searchfields.MeaningDetector;
+import de.geeksfactory.opacclient.reporting.ReportHandler;
 import de.geeksfactory.opacclient.searchfields.SearchField;
 import de.geeksfactory.opacclient.searchfields.SearchQuery;
 
@@ -48,236 +49,80 @@ import de.geeksfactory.opacclient.searchfields.SearchQuery;
 public interface OpacApi {
 
     /**
-     * Keywords to do a free search. Some APIs do support this, some don't. If supported, it must at
-     * least search in title and author field, but should also search abstract and other things.
-     * <p/>
-     * Map key for {@link #search(List)} and possible value for {@link #getSearchFields()}.
-     */
-    public static final String KEY_SEARCH_QUERY_FREE = "free";
-
-    /**
-     * Item title to search for. Doesn't have to be the full title, can also be a substring to be
-     * searched.
-     * <p/>
-     * Map key for {@link #search(List)} and possible value for {@link #getSearchFields()}.
-     */
-    public static final String KEY_SEARCH_QUERY_TITLE = "titel";
-
-    /**
-     * Author name to search for.
-     * <p/>
-     * Map key for {@link #search(List)} and possible value for {@link #getSearchFields()}.
-     */
-    public static final String KEY_SEARCH_QUERY_AUTHOR = "verfasser";
-
-    /**
-     * "Keyword A". Most libraries require very special input in this field. May be only shown if
-     * "advanced fields" is set in user preferences.
-     * <p/>
-     * Map key for {@link #search(List)} and possible value for {@link #getSearchFields()}.
-     */
-    public static final String KEY_SEARCH_QUERY_KEYWORDA = "schlag_a";
-
-    /**
-     * "Keyword B". Most libraries require very special input in this field. May be only shown if
-     * "advanced fields" is set in user preferences. Can only be set, if
-     * <code>KEY_SEARCH_QUERY_KEYWORDA</code> is set as well.
-     * <p/>
-     * Map key for {@link #search(List)} and possible value for {@link #getSearchFields()}.
-     */
-    public static final String KEY_SEARCH_QUERY_KEYWORDB = "schlag_b";
-
-    /**
-     * Library branch to search in. The user is able to select from multiple options, generated from
-     * the MetaData you store in the MetaDataSource you get in {@link #init(Library)}.
-     * <p/>
-     * Map key for {@link #search(List)} and possible value for {@link #getSearchFields()}.
-     */
-    public static final String KEY_SEARCH_QUERY_BRANCH = "zweigstelle";
-
-    /**
-     * "Home" library branch. Some library systems require this information at search request time
-     * to determine where book reservations should be placed. If in doubt, don't use. Behaves
-     * similar to <code>KEY_SEARCH_QUERY_BRANCH</code> .
-     * <p/>
-     * Map key for {@link #search(List)} and possible value for {@link #getSearchFields()}.
-     */
-    public static final String KEY_SEARCH_QUERY_HOME_BRANCH = "homebranch";
-
-    /**
-     * An ISBN / EAN code to search for. We cannot promise whether it comes with spaces or hyphens
-     * in between but it most likely won't. If it makes a difference to you, eliminate everythin
-     * except numbers and X. We also cannot say whether a ISBN10 or a ISBN13 is supplied - if
-     * relevant, check in your {@link #search(List)} implementation.
-     * <p/>
-     * Map key for {@link #search(List)} and possible value for {@link #getSearchFields()}.
-     */
-    public static final String KEY_SEARCH_QUERY_ISBN = "isbn";
-
-    /**
-     * Year of publication. Your API can either support this or both the
-     * <code>KEY_SEARCH_QUERY_YEAR_RANGE_*</code> fields (or none of them).
-     * <p/>
-     * Map key for {@link #search(List)} and possible value for {@link #getSearchFields()}.
-     */
-    public static final String KEY_SEARCH_QUERY_YEAR = "jahr";
-
-    /**
-     * End of range, if year of publication can be specified as a range. Can not be combined with
-     * <code>KEY_SEARCH_QUERY_YEAR</code> but has to be combined with
-     * <code>KEY_SEARCH_QUERY_YEAR_RANGE_END</code>.
-     * <p/>
-     * Map key for {@link #search(List)} and possible value for {@link #getSearchFields()}.
-     */
-    public static final String KEY_SEARCH_QUERY_YEAR_RANGE_START = "jahr_von";
-
-    /**
-     * Start of range, if year of publication can be specified as a range. Can not be combined with
-     * <code>KEY_SEARCH_QUERY_YEAR</code> but has to be combined with
-     * <code>KEY_SEARCH_QUERY_YEAR_RANGE_START</code>.
-     * <p/>
-     * Map key for {@link #search(List)} and possible value for {@link #getSearchFields()}.
-     */
-    public static final String KEY_SEARCH_QUERY_YEAR_RANGE_END = "jahr_bis";
-
-    /**
-     * Systematic identification, used in some libraries. Rarely in use. May be only shown if
-     * "advanced fields" is set in user preferences.
-     * <p/>
-     * Map key for {@link #search(List)} and possible value for {@link #getSearchFields()}.
-     */
-    public static final String KEY_SEARCH_QUERY_SYSTEM = "systematik";
-
-    /**
-     * Some libraries support a special "audience" field with specified values. Rarely in use. May
-     * be only shown if "advanced fields" is set in user preferences.
-     * <p/>
-     * Map key for {@link #search(List)} and possible value for {@link #getSearchFields()}.
-     */
-    public static final String KEY_SEARCH_QUERY_AUDIENCE = "interessenkreis";
-
-    /**
-     * The "publisher" search field
-     * <p/>
-     * Map key for {@link #search(List)} and possible value for {@link #getSearchFields()}.
-     */
-    public static final String KEY_SEARCH_QUERY_PUBLISHER = "verlag";
-
-    /**
-     * Item category (like "book" or "CD"). The user is able to select from multiple options,
-     * generated from the MetaData you store in the MetaDataSource you get in {@link
-     * #init(Library)}.
-     * <p/>
-     * Map key for {@link #search(List)} and possible value for {@link #getSearchFields()}.
-     */
-    public static final String KEY_SEARCH_QUERY_CATEGORY = "mediengruppe";
-
-    /**
-     * Unique item identifier. In most libraries, every single book has a unique number, most of the
-     * time printed on the in form of a barcode, sometimes encoded in a NFC chip.
-     * <p/>
-     * Map key for {@link #search(List)} and possible value for {@link #getSearchFields()}.
-     */
-    public static final String KEY_SEARCH_QUERY_BARCODE = "barcode";
-
-    /**
-     * Item location in library. Currently not in use.
-     * <p/>
-     * Map key for {@link #search(List)} and possible value for {@link #getSearchFields()}.
-     */
-    public static final String KEY_SEARCH_QUERY_LOCATION = "location";
-
-    /**
-     * Restrict search to digital media.
-     * <p/>
-     * Map key for {@link #search(List)} and possible value for {@link #getSearchFields()}.
-     */
-    public static final String KEY_SEARCH_QUERY_DIGITAL = "digital";
-
-    /**
-     * Restrict search to available media.
-     * <p/>
-     * Map key for {@link #search(List)} and possible value for {@link #getSearchFields()}.
-     */
-    public static final String KEY_SEARCH_QUERY_AVAILABLE = "available";
-
-    /**
-     * Sort search results in a specific order
-     * <p/>
-     * Map key for {@link #search(List)} and possible value for {@link #getSearchFields()}.
-     */
-    public static final String KEY_SEARCH_QUERY_ORDER = "order";
-
-    /**
-     * Returns whether – if account view is not supported in the given library – there is an
-     * automatic mechanism to help implementing account support in this city. Only makes sense when
-     * {@link #isAccountSupported(Library)} can return true and {@link
-     * #getAccountExtendableInfo(Account)} returns something useful.
-     * <p/>
-     * Flag to be present in the result of {@link #getSupportFlags()}.
-     */
-    public static final int SUPPORT_FLAG_ACCOUNT_EXTENDABLE = 0x0000001;
-
-    /**
      * Availability of the "prolong all lent items" feature
-     * <p/>
+     *
      * Flag to be present in the result of {@link #getSupportFlags()}.
      */
-    public static final int SUPPORT_FLAG_ACCOUNT_PROLONG_ALL = 0x0000002;
+    int SUPPORT_FLAG_ACCOUNT_PROLONG_ALL = 0x0000002;
 
     /**
      * Availability of the "quicklinks" feature
-     * <p/>
+     *
      * Flag to be present in the result of {@link #getSupportFlags()}.
      */
     @SuppressWarnings("UnusedDeclaration") // Plus Edition compatibility
-    public static final int SUPPORT_FLAG_QUICKLINKS = 0x0000004;
+            int SUPPORT_FLAG_QUICKLINKS = 0x0000004;
 
     /**
      * When the results are shown as an endless scrolling list, will reload the page the selected
      * result is located on if this flag is not present.
-     * <p/>
+     *
      * Flag to be present in the result of {@link #getSupportFlags()}.
      */
-    public static final int SUPPORT_FLAG_ENDLESS_SCROLLING = 0x0000008;
+    int SUPPORT_FLAG_ENDLESS_SCROLLING = 0x0000008;
 
     /**
      * Allow account change on reservation click.
-     * <p/>
+     *
      * Flag to be present in the result of {@link #getSupportFlags()}.
      */
-    public static final int SUPPORT_FLAG_CHANGE_ACCOUNT = 0x0000010;
+    int SUPPORT_FLAG_CHANGE_ACCOUNT = 0x0000010;
 
     /**
-     * May be called on application startup and you are free to call it in <our {@link #search}
+     * Asks the user responsibly about reservation fees
+     *
+     * Flag to be present in the result of {@link #getSupportFlags()}.
+     */
+    int SUPPORT_FLAG_WARN_RESERVATION_FEES = 0x0000020;
+
+    /**
+     * Asks the user responsibly about prolong fees
+     */
+    int SUPPORT_FLAG_WARN_PROLONG_FEES = 0x0000040;
+
+    /**
+     * May be called on application startup and you are free to call it in our {@link #search}
      * implementation or similar positions. It is commonly used to initialize a session. You MUST
      * NOT rely on it being called and should check by yourself, whether it was already called (if
      * your following calls require it to be called before). You SHOULD use this function to
      * populate the MetaDataSource e.g. with information on your library's branches.
-     * <p/>
+     *
      * This function is always called from a background thread, you can use blocking network
      * operations in it.
      *
      * @throws IOException           if network connection failed
      * @throws NotReachableException may throw this if the library couldn't be reached
      */
-    public void start() throws IOException;
+    void start() throws IOException;
 
     /**
      * Is called whenever a new API object is created. The difference to start is that you can rely
      * on it but must not use blocking network functions in it. I use it to initialize my
      * DefaultHTTPClient and to store the metadata and library objects.
      *
-     * @param library The library the Api is initialized for
+     * @param library           The library the Api is initialized for
+     * @param httpClientFactory A HttpClientFactory instance that will be used for instantiating
+     *                          HTTP clients. This factory is pluggable because we want to use
+     *                          platform-specific code on Android.
      */
-    public void init(Library library);
+    void init(Library library, HttpClientFactory httpClientFactory);
 
     /**
-     * Performs a catalogue search. The given <code>List<SearchQuery></code> contains the search
-     * criteria. See documentation on <code>SearchResult</code> for details.
-     * <p/>
+     * Performs a catalogue search. The given <code>List&lt;SearchQuery&gt;</code> contains the
+     * search criteria. See documentation on <code>SearchResult</code> for details.
+     *
      * This function is always called from a background thread, you can use blocking network
-     * operations in it. See documentation on DetailledItem for details.
+     * operations in it. See documentation on DetailedItem for details.
      *
      * @param query see above
      * @return List of results and additional information, or result object with the error flag set
@@ -285,36 +130,36 @@ public interface OpacApi {
      * @throws JSONException
      * @see de.geeksfactory.opacclient.objects.SearchResult
      */
-    public SearchRequestResult search(List<SearchQuery> query)
+    SearchRequestResult search(List<SearchQuery> query)
             throws IOException, OpacErrorException,
             JSONException;
 
     /**
      * Performs a catalogue search for volumes of an item. The query is given to it from {@link
-     * DetailledItem#getVolumesearch()}.
-     * <p/>
+     * DetailedItem#getVolumesearch()}.
+     *
      * This function is always called from a background thread, you can use blocking network
-     * operations in it. See documentation on DetailledItem for details.
+     * operations in it. See documentation on DetailedItem for details.
      *
      * @param query see above
      * @return List of results and additional information, or result object with the error flag set
      * to true.
      * @see de.geeksfactory.opacclient.objects.SearchResult
      */
-    public SearchRequestResult volumeSearch(Map<String, String> query)
+    SearchRequestResult volumeSearch(Map<String, String> query)
             throws IOException, OpacErrorException;
 
     /**
      * If your {@link #search(List)} implementation puts something different from <code>null</code>
      * into {@link SearchRequestResult#setFilters(List)}, this will be called to apply a filter to
      * the last search request.
-     * <p/>
+     *
      * If your {@link #search(List)} implementation does not set {@link
      * SearchRequestResult#setFilters(List)}, this wil never be called. Just return
      * <code>null</code>.
-     * <p/>
+     *
      * This function is always called from a background thread, you can use blocking network
-     * operations in it. See documentation on DetailledItem for details.
+     * operations in it. See documentation on DetailedItem for details.
      *
      * @param filter The filter to be applied.
      * @param option The filters option to be applied. If the <code>option.isApplied()</code>
@@ -327,14 +172,14 @@ public interface OpacApi {
      */
     @SuppressWarnings({"SameReturnValue", "RedundantThrows", "UnusedDeclaration"})
     // Plus Edition compatibility
-    public SearchRequestResult filterResults(Filter filter, Filter.Option option)
+    SearchRequestResult filterResults(Filter filter, Filter.Option option)
             throws IOException, OpacErrorException;
 
     /**
      * Get result page <code>page</code> of the search performed last with {@link #search}.
-     * <p/>
+     *
      * This function is always called from a background thread, you can use blocking network
-     * operations in it. See documentation on DetailledItem for details.
+     * operations in it. See documentation on DetailedItem for details.
      *
      * @param page page number to fetch
      * @return List of results and additional information, or result object with the error flag set
@@ -342,48 +187,47 @@ public interface OpacApi {
      * @see #search(List)
      * @see de.geeksfactory.opacclient.objects.SearchResult
      */
-    public SearchRequestResult searchGetPage(int page) throws IOException,
+    SearchRequestResult searchGetPage(int page) throws IOException,
             OpacErrorException, JSONException;
 
     /**
      * Get details for the item with unique ID id.
-     * <p/>
+     *
      * This function is always called from a background thread, you can use blocking network
      * operations in it.
      *
      * @param id         id of object to fetch
-     * @param homebranch The users "home branch". Only filled if your library system supports
-     *                   <code>KEY_SEARCH_QUERY_HOME_BRANCH</code>. Assume that it can be
-     *                   <code>null</code>. If in doubt, ignore.
+     * @param homebranch The users "home branch". "Home" library branch. Some library systems
+     *                   require this information at search request time to determine where book
+     *                   reservations should be placed. If in doubt, set to <code>null</code>.
      * @return Media details
-     * @see de.geeksfactory.opacclient.objects.DetailledItem
-     * @see #KEY_SEARCH_QUERY_HOME_BRANCH
+     * @see DetailedItem
      */
-    public DetailledItem getResultById(String id, String homebranch)
+    DetailedItem getResultById(String id, String homebranch)
             throws IOException, OpacErrorException;
 
     /**
      * Get details for the item at <code>position</code> from last {@link #search} or {@link
      * #searchGetPage} call.
-     * <p/>
+     *
      * We generally prefer {@link #getResultById(String, String)}, so if you implement
      * <code>getResultById</code> <strong>AND</strong> <em>every</em> search result of your driver
      * has an id set, you can omit this method (respectively, return null).
-     * <p/>
+     *
      * This function is always called from a background thread, you can use blocking network
      * operations in it.
      *
      * @param position position of object in last search
      * @return Media details
-     * @see de.geeksfactory.opacclient.objects.DetailledItem
+     * @see DetailedItem
      */
-    public DetailledItem getResult(int position) throws IOException,
+    DetailedItem getResult(int position) throws IOException,
             OpacErrorException;
 
     /**
      * Perform a reservation on the item last fetched with <code>getResultById</code> or
      * <code>getResult</code> for Account <code>acc</code>. (if applicable)
-     * <p/>
+     *
      * This function is always called from a background thread, you can use blocking network
      * operations in it.
      *
@@ -392,8 +236,8 @@ public interface OpacApi {
      * @param useraction Identifier for the selection made by the user in <code>selection</code>, if
      *                   a selection was made (see {@link ReservationResult#getActionIdentifier()})
      *                   or 0, if no selection was required. If your last method call returned
-     *                   <code>CONFIRMATION_NEEDED</code>,
-     *                   this is set to <code>ACTION_CONFIRMATION</code>
+     *                   <code>CONFIRMATION_NEEDED</code>, this is set to
+     *                   <code>ACTION_CONFIRMATION</code>
      *                   if the user positively confirmed the action.
      * @param selection  When the method is called for the first time or if useraction is
      *                   <code>ACTION_CONFIRMATION</code>, this parameter is null. If you return
@@ -402,13 +246,13 @@ public interface OpacApi {
      *                   selection.
      * @return A <code>ReservationResult</code> object which has to have the status set.
      */
-    public ReservationResult reservation(DetailledItem item, Account account,
+    ReservationResult reservation(DetailedItem item, Account account,
             int useraction, String selection) throws IOException;
 
     /**
      * Extend the lending period of the item identified by the given String (see
      * <code>AccountData</code>)
-     * <p/>
+     *
      * This function is always called from a background thread, you can use blocking network
      * operations in it.
      *
@@ -417,8 +261,8 @@ public interface OpacApi {
      * @param useraction Identifier for the selection made by the user in <code>selection</code>, if
      *                   a selection was made (see {@link ProlongResult#getActionIdentifier()}) or
      *                   0, if no selection was required. If your last method call returned
-     *                   <code>CONFIRMATION_NEEDED</code>,
-     *                   this is set to <code>ACTION_CONFIRMATION</code>
+     *                   <code>CONFIRMATION_NEEDED</code>, this is set to
+     *                   <code>ACTION_CONFIRMATION</code>
      *                   if the user positively confirmed the action.
      * @param selection  When the method is called for the first time or if useraction is
      *                   <code>ACTION_CONFIRMATION</code>, this parameter is null. If you return
@@ -427,7 +271,7 @@ public interface OpacApi {
      *                   selection.
      * @return A <code>ProlongResult</code> object which has to have the status set.
      */
-    public ProlongResult prolong(String media, Account account, int useraction,
+    ProlongResult prolong(String media, Account account, int useraction,
             String selection) throws IOException;
 
     /**
@@ -435,7 +279,7 @@ public interface OpacApi {
      * #getSupportFlags()} implementation's return value contains the {@link
      * #SUPPORT_FLAG_ACCOUNT_PROLONG_ALL} flag. If you don't support the feature, just implement a
      * stub method, like <code>return false;</code>
-     * <p/>
+     *
      * This function is always called from a background thread, you can use blocking network
      * operations in it.
      *
@@ -443,13 +287,13 @@ public interface OpacApi {
      * @see OpacApi#prolong(String, Account, int, String)
      * @see de.geeksfactory.opacclient.objects.AccountData
      */
-    public ProlongAllResult prolongAll(Account account, int useraction,
+    ProlongAllResult prolongAll(Account account, int useraction,
             String selection) throws IOException;
 
     /**
      * Cancel a media reservation/order identified by the given String (see AccountData
      * documentation) (see <code>AccountData</code>)
-     * <p/>
+     *
      * This function is always called from a background thread, you can use blocking network
      * operations in it.
      *
@@ -458,8 +302,8 @@ public interface OpacApi {
      * @param useraction Identifier for the selection made by the user in <code>selection</code>, if
      *                   a selection was made (see {@link CancelResult#getActionIdentifier()}) or 0,
      *                   if no selection was required. If your last method call returned
-     *                   <code>CONFIRMATION_NEEDED</code>,
-     *                   this is set to <code>ACTION_CONFIRMATION</code>
+     *                   <code>CONFIRMATION_NEEDED</code>, this is set to
+     *                   <code>ACTION_CONFIRMATION</code>
      *                   if the user positively confirmed the action.
      * @param selection  When the method is called for the first time or if useraction is
      *                   <code>ACTION_CONFIRMATION</code>, this parameter is null. If you return
@@ -468,12 +312,12 @@ public interface OpacApi {
      *                   selection.
      * @return A <code>CancelResult</code> object which has to have the status set.
      */
-    public CancelResult cancel(String media, Account account, int useraction,
+    CancelResult cancel(String media, Account account, int useraction,
             String selection) throws IOException, OpacErrorException;
 
     /**
      * Load account view (borrowed and reserved items, see <code>AccountData</code>)
-     * <p/>
+     *
      * This function is always called from a background thread, you can use blocking network
      * operations in it.
      *
@@ -481,14 +325,28 @@ public interface OpacApi {
      * @return Account details
      * @see de.geeksfactory.opacclient.objects.AccountData
      */
-    public AccountData account(Account account) throws IOException,
+    AccountData account(Account account) throws IOException,
+            JSONException, OpacErrorException;
+
+    /**
+     * Get pending fees on the account. The result of calling this should be fully equivalent
+     * to calling account(account()).getPendingFees(), but on some implementations this method
+     * might be faster if you only need the fees, but not the full account data.
+     *
+     * This function is always called from a background thread, you can use blocking network
+     * operations in it.
+     *
+     * @param account The account to display
+     * @return Outstanding fees, as formatted by the library system
+     */
+    String getPendingAccountFees(Account account) throws IOException,
             JSONException, OpacErrorException;
 
     /**
      * Check the validity of given account data. This is separate from the {@link #account(Account)}
      * function because just checking the login can be much faster than retrieving all the account
      * data.
-     * <p/>
+     *
      * This function is always called from a background thread, you can use blocking network
      * operations in it.
      *
@@ -496,7 +354,7 @@ public interface OpacApi {
      * @throws OpacErrorException when the login data is invalid or there's another error message
      *                            from the OPAC system
      */
-    public void checkAccountData(Account account) throws IOException,
+    void checkAccountData(Account account) throws IOException,
             JSONException, OpacErrorException;
 
     /**
@@ -511,45 +369,8 @@ public interface OpacApi {
      * @see #search
      */
     @SuppressWarnings("RedundantThrows")
-    public List<SearchField> getSearchFields() throws IOException,
+    List<SearchField> getSearchFields() throws IOException,
             OpacErrorException, JSONException;
-
-    /**
-     * Returns whether – if account view is not supported in the given library – there is an
-     * automatic mechanism to help implementing account support in this city.
-     * <p/>
-     * Should be replaced by {@link Library#isAccountSupported()}
-     *
-     * @param library Library to check compatibility
-     * @return <code>true</code> if account view is supported or <code>false</code> if it isn't.
-     */
-    @Deprecated
-    public boolean isAccountSupported(Library library);
-
-    /**
-     * Returns whether – if account view is not supported in the given library – there is an
-     * automatic mechanism to help implementing account support in this city.
-     *
-     * @return <code>true</code> if account support can easily be implemented with some extra
-     * information or <code>false</code> if it can't.
-     * @deprecated Functionality is provided by {@link #getSupportFlags()}, please return
-     * <code>SUPPORT_FLAG_ACCOUNT_EXTENDABLE</code> from <code>getSupportFlags</code>.
-     */
-    @Deprecated
-    public boolean isAccountExtendable();
-
-    /**
-     * Is called if <code>isAccountSupported</code> returns false but
-     * <code>isAccountExtendable</code>
-     * returns <code>true</code>. The return value is sent in a crash report which can be submitted
-     * by the user. It is currently implemented in BOND26 and just returns the HTML of the OPAC's
-     * account page (with the user logged in).
-     *
-     * @param account Account data the user entered
-     * @return Some information to be sent in a crash report
-     */
-    @Deprecated
-    public String getAccountExtendableInfo(Account account) throws IOException;
 
     /**
      * Some library systems allow us to share search results. If your library system allows this
@@ -562,56 +383,63 @@ public interface OpacApi {
      * @param title Title of the item to be shared
      * @return An URL or <strong>null</strong>.
      */
-    public String getShareUrl(String id, String title);
+    String getShareUrl(String id, String title);
 
     /**
      * Return which optional features your API implementation supports.
      *
      * @return combination (bitwise OR) of <code>SUPPORT_FLAG_*</code> constants
      */
-    public int getSupportFlags();
-
-    /**
-     * Returns whether the {@link MeaningDetector} should be used to automatically detect the
-     * meanings of this library's search fields
-     */
-    public boolean shouldUseMeaningDetector();
+    int getSupportFlags();
 
     /**
      * Sets the StringProvider to use for error messages etc.
      *
      * @param stringProvider the StringProvider to use
      */
-    public void setStringProvider(StringProvider stringProvider);
+    void setStringProvider(StringProvider stringProvider);
 
     /**
      * Get all languages supported by this library. This will be a Set of language codes defined in
-     * ISO-639-1 (two-letter codes in lower case, see <a href="http://en.wikipedia
-     * .org/wiki/List_of_ISO_639-1_codes">this list</a>). We don't need to use this function in the
-     * app because the API will automatically fall back if the language set is not supported, but it
-     * is used in the MeaningDetector tool to get search fields for all supported languages. This
-     * function may use blocking network operations and may return null if the API doesn't support
-     * different languages.
+     * ISO-639-1 (two-letter codes in lower case, see
+     * <a href="http://en.wikipedia.org/wiki/List_of_ISO_639-1_codes">this list</a>).
+     * We don't need to use this function in the app because the API will automatically
+     * fall back if the language set is not supported, but it is used in the MeaningDetector tool to
+     * get search fields for all supported languages. This function may use blocking network
+     * operations and may return null if the API doesn't support different languages.
      *
      * @throws IOException
      */
-    public Set<String> getSupportedLanguages() throws IOException;
+    Set<String> getSupportedLanguages() throws IOException;
 
     /**
      * Set the language to use. This should be one of the language codes defined in ISO-639-1
-     * (two-letter codes in lower case, see <a href="http://en.wikipedia
-     * .org/wiki/List_of_ISO_639-1_codes">this list</a>). The API should use the default language of
-     * the library if this is not called and should fall back first to English and then to the
-     * library's default language if the requested language is not available.
+     * (two-letter codes in lower case, see
+     * <a href="http://en.wikipedia.org/wiki/List_of_ISO_639-1_codes">this list</a>).
+     * The API should use the default language of the library if this is not called and
+     * should fall back first to English and then to the library's default language if the requested
+     * language is not available.
      *
      * @param language the language to use
      */
-    public void setLanguage(String language);
+    void setLanguage(String language);
+
+    /**
+     * Sets the report handler to use.
+     *
+     * If an error occurs or other unexpected things happen (such as needing to use a fallback
+     * behaviour that should normally not need to be used) the API might generate a {@link
+     * de.geeksfactory.opacclient.reporting.Report} containing further debugging information. You
+     * can optionally handle these reports (e.g. to send them to the developer) using this methods.
+     *
+     * @param reportHandler the report handler to use
+     */
+    void setReportHandler(ReportHandler reportHandler);
 
     /**
      * A general exception containing a human-readable error message
      */
-    public class OpacErrorException extends Exception {
+    class OpacErrorException extends Exception {
 
         private static final long serialVersionUID = 5834803212488872907L;
 
@@ -623,7 +451,7 @@ public interface OpacApi {
 
     /**
      * The result of a multi-step-supporting method call.
-     * <p/>
+     *
      * This is a way of implementing an operating which may need an unregular number of steps with
      * user interaction. When the user starts the operation, the method is called. It may return
      * success or error, after which the operation does not continue, but it also may return that it
@@ -632,7 +460,7 @@ public interface OpacApi {
      *
      * @since 2.0.18
      */
-    public abstract class MultiStepResult {
+    abstract class MultiStepResult {
 
         /**
          * Action type identifier for process confirmation
@@ -727,22 +555,25 @@ public interface OpacApi {
         }
 
         /**
-         * Set details the user should confirm if {@link #getStatus()} is
-         * <code>CONFIRMATION_NEEDED</code>.
+         * If {@link #getStatus()} is <code>CONFIRMATION_NEEDED</code>, this gives you more
+         * information to display to the user. This is a list of of unknown length. Every list entry
+         * is an array of strings that of size one or two (which can vary between the elements of
+         * the list). If the size of such an array A is two, then A[0] contains a description of
+         * A[1], e.g. <code>A = {"Fee", "2 EUR"}</code> or <code>A = {"Pickup location", "Central library"}</code>.
+         * If the size is only one, it is a general message to be shown, e.g.
+         * <code>{"This action will cost 2 EUR."}</code>.
          *
-         * @return ContentValue tuples with key to give back and value to show to the users.
+         * @return A list of String[] entries, as described above.
          */
         public List<String[]> getDetails() {
             return details;
         }
 
         /**
-         * Set values the user should select one of if {@link #getStatus()} is set to
-         * <code>CONFIRMATION_NEEDED</code> .
+         * Set details the user should confirm if {@link #getStatus()} is
+         * <code>CONFIRMATION_NEEDED</code>.
          *
-         * @param details List containing reservation details. A detail is stored as an array of two
-         *                strings, the detail's description (e.g. "Fee") and the detail itself (e.g.
-         *                "2 EUR")
+         * @param details List containing reservation details. See {@link #getDetails()} for what this means.
          */
         public void setDetails(List<String[]> details) {
             this.details = details;
@@ -793,12 +624,22 @@ public interface OpacApi {
             EMAIL_NEEDED
         }
 
+        @Override
+        public String toString() {
+            return "MultiStepResult{" +
+                    "status=" + status +
+                    ", selection=" + selection +
+                    ", details=" + details +
+                    ", actionidentifier=" + actionidentifier +
+                    ", message='" + message + '\'' +
+                    '}';
+        }
     }
 
     /**
-     * The result of a {@link OpacApi#reservation(DetailledItem, Account, int, String)} call
+     * The result of a {@link OpacApi#reservation(DetailedItem, Account, int, String)} call
      */
-    public class ReservationResult extends MultiStepResult {
+    class ReservationResult extends MultiStepResult {
 
         /**
          * Action type identifier for library branch selection
@@ -817,7 +658,7 @@ public interface OpacApi {
     /**
      * The result of a {@link OpacApi#prolong(String, Account, int, String)} call
      */
-    public class ProlongResult extends MultiStepResult {
+    class ProlongResult extends MultiStepResult {
 
         public ProlongResult(Status status) {
             super(status);
@@ -831,7 +672,7 @@ public interface OpacApi {
     /**
      * The result of a {@link OpacApi#prolongAll(Account, int, String)} call
      */
-    public class ProlongAllResult extends MultiStepResult {
+    class ProlongAllResult extends MultiStepResult {
 
         public static final String KEY_LINE_TITLE = "title";
         public static final String KEY_LINE_AUTHOR = "author";
@@ -865,9 +706,9 @@ public interface OpacApi {
     }
 
     /**
-     * The result of a {@link OpacApi#prolong(String, Account, int, String)} call
+     * The result of a {@link OpacApi#cancel(String, Account, int, String)} call
      */
-    public class CancelResult extends MultiStepResult {
+    class CancelResult extends MultiStepResult {
 
         public CancelResult(Status status) {
             super(status);

@@ -3,6 +3,8 @@ package de.geeksfactory.opacclient.apis;
 import org.apache.http.NameValuePair;
 import org.apache.http.client.CookieStore;
 import org.apache.http.message.BasicNameValuePair;
+import org.joda.time.format.DateTimeFormat;
+import org.joda.time.format.DateTimeFormatter;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.jsoup.Jsoup;
@@ -25,10 +27,13 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import de.geeksfactory.opacclient.i18n.StringProvider;
+import de.geeksfactory.opacclient.networking.HttpClientFactory;
+import de.geeksfactory.opacclient.networking.NotReachableException;
 import de.geeksfactory.opacclient.objects.Account;
 import de.geeksfactory.opacclient.objects.AccountData;
+import de.geeksfactory.opacclient.objects.Copy;
 import de.geeksfactory.opacclient.objects.Detail;
-import de.geeksfactory.opacclient.objects.DetailledItem;
+import de.geeksfactory.opacclient.objects.DetailedItem;
 import de.geeksfactory.opacclient.objects.Filter;
 import de.geeksfactory.opacclient.objects.Library;
 import de.geeksfactory.opacclient.objects.SearchRequestResult;
@@ -40,7 +45,7 @@ import de.geeksfactory.opacclient.searchfields.TextSearchField;
 
 import static java.net.URLDecoder.decode;
 
-public class Primo extends BaseApi {
+public class Primo extends ApacheBaseApi {
     protected static HashMap<String, String> languageCodes = new HashMap<>();
     protected static HashMap<String, SearchResult.MediaType> mediaTypeClasses = new HashMap<>();
 
@@ -54,6 +59,7 @@ public class Primo extends BaseApi {
         languageCodes.put("cz", "cz_CZ");
         languageCodes.put("zh", "zh_ZH");
         languageCodes.put("it", "it_IT");
+        languageCodes.put("pl", "pl_PL");
 
         mediaTypeClasses.put("EXLResultMediaTYPEbook", SearchResult.MediaType.BOOK);
         mediaTypeClasses.put("EXLResultMediaTYPEarticle", SearchResult.MediaType.BOOK);
@@ -78,8 +84,8 @@ public class Primo extends BaseApi {
     protected List<SearchQuery> last_query;
 
     @Override
-    public void init(Library lib) {
-        super.init(lib);
+    public void init(Library lib, HttpClientFactory httpClientFactory) {
+        super.init(lib, httpClientFactory);
 
         this.library = lib;
         this.data = lib.getData();
@@ -96,8 +102,13 @@ public class Primo extends BaseApi {
             throws IOException, OpacErrorException {
         List<NameValuePair> params = new ArrayList<>();
 
+        String tab = "";
+        if (data.has("searchtab")) {
+            tab = "&tab=" + data.optString("searchtab", "default_tab");
+        }
         String html =
-                httpGet(opac_url + "/action/search.do?mode=Advanced&ct=AdvancedSearch&vid=" + vid,
+                httpGet(opac_url + "/action/search.do?mode=Advanced&ct=AdvancedSearch&vid=" + vid +
+                                tab,
                         getDefaultEncoding());
         Document doc = Jsoup.parse(html);
 
@@ -143,9 +154,14 @@ public class Primo extends BaseApi {
             throws IOException, OpacErrorException, JSONException {
         if (!initialised) start();
         last_query = query;
-        String html = httpGet(opac_url + "/action/search.do" +
-                        buildHttpGetParams(buildSearchParams(query), getDefaultEncoding()),
-                getDefaultEncoding());
+        String html;
+        if (query.size() == 1 && query.get(0).getKey().equals("url")) {
+            html = httpGet(query.get(0).getValue(), getDefaultEncoding());
+        } else {
+            html = httpGet(opac_url + "/action/search.do" +
+                            buildHttpGetParams(buildSearchParams(query)),
+                    getDefaultEncoding());
+        }
         Document doc = Jsoup.parse(html);
 
         return parse_search(doc, 1);
@@ -160,8 +176,9 @@ public class Primo extends BaseApi {
         if (doc.select(".EXLResultsNumbers").size() > 0) {
             try {
                 resnum = Integer.valueOf(
-                        doc.select(".EXLResultsNumbers em").first().text().trim().replace(".", "")
-                           .replace(",", "").replace(" ", ""));
+                        doc.select(".EXLResultsNumbers em, .PaginationLabel strong").first().text()
+                           .trim().replace(".", "")
+                           .replace(",", "").replace(" ", "").replace("Ergebnisse", ""));
             } catch (NumberFormatException e) {
                 e.printStackTrace();
             }
@@ -187,6 +204,8 @@ public class Primo extends BaseApi {
                 res.setStatus(SearchResult.Status.GREEN);
             } else if (resrow.select(".EXLResultStatusNotAvailable").size() > 0) {
                 res.setStatus(SearchResult.Status.RED);
+            } else if (resrow.select(".EXLResultStatusMaybeAvailable").size() > 0) {
+                res.setStatus(SearchResult.Status.YELLOW);
             }
             res.setPage(page);
 
@@ -215,6 +234,17 @@ public class Primo extends BaseApi {
                     res.setType(cls.getValue());
                     break;
                 }
+            }
+
+            if (resrow.select("a.EXLBriefResultsDisplayMultipleLink").size() > 0) {
+                String url = resrow.select("a.EXLBriefResultsDisplayMultipleLink").first()
+                                   .absUrl("href");
+                List<SearchQuery> query = new ArrayList<>();
+                TextSearchField field =
+                        new TextSearchField("url", "url", false, false, "url", false, false);
+                field.setVisible(false);
+                query.add(new SearchQuery(field, url));
+                res.setChildQuery(query);
             }
 
 
@@ -265,7 +295,7 @@ public class Primo extends BaseApi {
         params.add(new BasicNameValuePair("pag", "cur"));
 
         String html = httpGet(opac_url + "/action/search.do" +
-                        buildHttpGetParams(params, getDefaultEncoding()),
+                        buildHttpGetParams(params),
                 getDefaultEncoding());
         Document doc = Jsoup.parse(html);
 
@@ -273,7 +303,7 @@ public class Primo extends BaseApi {
     }
 
     @Override
-    public DetailledItem getResultById(String id, String homebranch)
+    public DetailedItem getResultById(String id, String homebranch)
             throws IOException, OpacErrorException {
         if (!initialised) start();
         String html =
@@ -284,9 +314,9 @@ public class Primo extends BaseApi {
         return parse_detail(id, doc);
     }
 
-    protected DetailledItem parse_detail(String id, Document doc)
+    protected DetailedItem parse_detail(String id, Document doc)
             throws OpacErrorException, IOException {
-        DetailledItem res = new DetailledItem();
+        DetailedItem res = new DetailedItem();
         res.setId(id);
 
         res.setTitle(doc.select(".EXLResultTitle").text());
@@ -322,35 +352,59 @@ public class Primo extends BaseApi {
                 String title = th.text().toLowerCase(Locale.GERMAN).trim();
                 if (title.contains("library") || title.contains("bibliothek") ||
                         title.contains("branch")) {
-                    copymap.put(i, DetailledItem.KEY_COPY_BRANCH);
+                    copymap.put(i, "branch");
                 } else if (title.contains("location") || title.contains("ort")) {
-                    copymap.put(i, DetailledItem.KEY_COPY_LOCATION);
+                    copymap.put(i, "location");
                 } else if (title.contains("call number") || title.contains("signatur")) {
-                    copymap.put(i, DetailledItem.KEY_COPY_SHELFMARK);
+                    copymap.put(i, "signature");
                 } else if (title.contains("due date") || title.contains("llig am") ||
                         title.contains("ausgeliehen bis") || title.contains("lligkeit")
                         || title.contains("ausleihstatus")) {
-                    copymap.put(i, DetailledItem.KEY_COPY_RETURN);
+                    copymap.put(i, "returndate");
                 } else if (title.contains("loan to") || title.contains("bezugsmodalit") ||
                         title.contains("ausleihm") || title.contains("status")) {
-                    copymap.put(i, DetailledItem.KEY_COPY_STATUS);
+                    copymap.put(i, "status");
                 } else if (title.contains("queue") || title.contains("vormerker")) {
-                    copymap.put(i, DetailledItem.KEY_COPY_RESERVATIONS);
+                    copymap.put(i, "reservations");
                 }
                 i++;
             }
+
+            DateTimeFormatter fmt =
+                    DateTimeFormat.forPattern("dd.MM.yyyy").withLocale(Locale.GERMAN);
+            DateTimeFormatter fmt2 =
+                    DateTimeFormat.forPattern("dd/MM/yyyy").withLocale(Locale.GERMAN);
 
             for (Element tr : doc2
                     .select(".EXLLocationTable tr:not(.EXLLocationTitlesRow):not(" +
                             ".EXLAdditionalFieldsRow)")) {
                 int j = 0;
-                Map<String, String> copy = new HashMap<>();
+                Copy copy = new Copy();
                 for (Element td : tr.children()) {
-                    if (copymap.containsKey(j)) {
-                        copy.put(copymap.get(j), td.text().trim());
+                    String value = td.text().replace("\u00a0", " ").trim();
+                    if (copymap.containsKey(j) && !value.equals("")) {
+                        try {
+                            copy.set(copymap.get(j), value, fmt);
+                        } catch (IllegalArgumentException e) {
+                            try {
+                                copy.set(copymap.get(j), value, fmt2);
+                            } catch (IllegalArgumentException e2) {
+                                e2.printStackTrace();
+                            }
+                        }
                     }
                     j++;
                 }
+                res.addCopy(copy);
+            }
+        } else if (doc2.select(".EXLLocationList").size() > 0) {
+            // e.g. University of South Wales
+            for (Element row : doc2.select(".EXLLocationList")) {
+                Copy copy = new Copy();
+                copy.setBranch(row.select(".EXLLocationsTitle").text());
+                copy.setDepartment(row.select(".EXLLocationInfo strong").text());
+                copy.setShelfmark(row.select(".EXLLocationInfo cite").text());
+                copy.setStatus(row.select(".EXLLocationInfo em").text());
                 res.addCopy(copy);
             }
         }
@@ -377,7 +431,7 @@ public class Primo extends BaseApi {
     }
 
     @Override
-    public DetailledItem getResult(int position) throws IOException, OpacErrorException {
+    public DetailedItem getResult(int position) throws IOException, OpacErrorException {
         return null;
     }
 
@@ -389,7 +443,7 @@ public class Primo extends BaseApi {
     }
 
     @Override
-    public List<SearchField> getSearchFields()
+    public List<SearchField> parseSearchFields()
             throws IOException, OpacErrorException, JSONException {
         start();
         String html =
@@ -399,6 +453,9 @@ public class Primo extends BaseApi {
 
         List<SearchField> fields = new ArrayList<>();
 
+        if (doc.select("select#exlidInput_scope_1").size() < 1) {
+            throw new NotReachableException();
+        }
         Elements options = doc.select("select#exlidInput_scope_1").first().select("option");
         for (Element option : options) {
             TextSearchField field = new TextSearchField();
@@ -441,18 +498,13 @@ public class Primo extends BaseApi {
                 continue;
             }
             field.setId("#" + select.attr("id"));
-            List<Map<String, String>> dropdownOptions = new ArrayList<>();
             for (Element option : select.select("option")) {
-                Map<String, String> dropdownOption = new HashMap<>();
-                dropdownOption.put("key", option.val());
-                dropdownOption.put("value", option.text());
                 if (option.val().equals("all_items")) {
-                    dropdownOptions.add(0, dropdownOption);
+                    field.addDropdownValue(0, option.val(), option.text());
                 } else {
-                    dropdownOptions.add(dropdownOption);
+                    field.addDropdownValue(option.val(), option.text());
                 }
             }
-            field.setDropdownValues(dropdownOptions);
             field.setData(new JSONObject());
             field.getData().put("meaning", field.getId());
             fields.add(field);
@@ -529,22 +581,7 @@ public class Primo extends BaseApi {
     }
 
     @Override
-    public boolean isAccountSupported(Library library) {
-        return false;
-    }
-
-    @Override
-    public boolean isAccountExtendable() {
-        return false;
-    }
-
-    @Override
-    public String getAccountExtendableInfo(Account account) throws IOException {
-        return null;
-    }
-
-    @Override
-    public ReservationResult reservation(DetailledItem item, Account account,
+    public ReservationResult reservation(DetailedItem item, Account account,
             int useraction, String selection) throws IOException {
         return null;
     }

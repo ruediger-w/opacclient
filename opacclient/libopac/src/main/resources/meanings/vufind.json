@@ -1,0 +1,18 @@
+{
+	"AllFields": "FREE",
+	"Author": "AUTHOR",
+	"Title": "TITLE",
+	"Subject": "KEYWORD",
+	"CallNumber": "BARCODE",
+	"ISN": "ISBN",
+	"publisher": "PUBLISHER",
+    "year": "YEAR",
+    "Barcode": "BARCODE",
+    "format": "CATEGORY",
+    "~format": "CATEGORY",
+    "branch_de15": "BRANCH",
+    "branch": "BRANCH",
+  "Signatur": "BARCODE",
+  "branch_dech1": "BRANCH",
+  "format_de15": "CATEGORY"
+}

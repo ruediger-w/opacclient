@@ -1,7 +1,8 @@
-<android.support.v4.widget.DrawerLayout
+<androidx.drawerlayout.widget.DrawerLayout
+    android:id="@+id/drawer_layout"
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:id="@+id/drawer_layout"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:fitsSystemWindows="true">
@@ -10,14 +11,14 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent">
 
-        <android.support.v7.widget.Toolbar
+        <androidx.appcompat.widget.Toolbar
             android:id="@+id/toolbar"
-            android:layout_height="168dp"
             android:layout_width="match_parent"
-            android:gravity="top"
-            android:paddingBottom="104dp"
+            android:layout_height="168dp"
             android:background="?attr/colorPrimary"
             android:elevation="4dp"
+            android:gravity="top"
+            android:paddingBottom="104dp"
             android:theme="@style/ThemeOverlay.Opacapp.ActionBar"
             app:popupTheme="@style/ThemeOverlay.AppCompat.Light"/>
 
@@ -31,65 +32,70 @@
             android:id="@+id/twopane_wrapper"
             android:layout_width="720dp"
             android:layout_height="match_parent"
-            android:layout_marginTop="-96dp"
+            android:layout_below="@id/toolbar"
+            android:layout_centerHorizontal="true"
             android:layout_marginLeft="16dp"
             android:layout_marginRight="16dp"
-            android:layout_centerHorizontal="true"
-            android:layout_below="@id/toolbar"
-            android:baselineAligned="false"
-            android:divider="?dividerHorizontal"
-            android:orientation="horizontal"
-            android:showDividers="middle"
-            android:elevation="8dp"
+            android:layout_marginTop="-96dp"
+            android:animateLayoutChanges="true"
             android:background="@drawable/popup_bg"
-            android:animateLayoutChanges="true">
+            android:baselineAligned="false"
+            android:elevation="8dp"
+            android:orientation="vertical"
+            android:showDividers="middle">
 
-            <FrameLayout
-                android:id="@+id/content_frame"
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1">
-            </FrameLayout>
+            <include
+                android:id="@+id/support_policy_hint"
+                layout="@layout/support_policy_hint"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone"/>
 
-            <FrameLayout
-                android:id="@+id/content_frame_right"
-                android:layout_width="0dp"
+            <LinearLayout
+                android:id="@+id/twopane_wrapper_inner"
+                android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:layout_weight="2">
-            </FrameLayout>
+                android:animateLayoutChanges="true"
+                android:baselineAligned="false"
+                android:divider="?dividerHorizontal"
+                android:elevation="8dp"
+                android:orientation="horizontal"
+                android:showDividers="middle">
+
+                <FrameLayout
+                    android:id="@+id/content_frame"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1">
+                </FrameLayout>
+
+                <FrameLayout
+                    android:id="@+id/content_frame_right"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="2">
+                </FrameLayout>
+            </LinearLayout>
         </LinearLayout>
 
-        <android.support.design.widget.FloatingActionButton
+        <de.geeksfactory.opacclient.ui.vectordrawable.VectorDrawableFloatingActionButton
             android:id="@+id/search_fab"
             android:layout_width="72dp"
             android:layout_height="72dp"
-            android:layout_marginTop="-36dp"
-            android:layout_marginRight="36dp"
-            android:layout_below="@id/toolbar"
             android:layout_alignParentRight="true"
+            android:layout_below="@id/toolbar"
+            android:layout_marginRight="36dp"
+            android:layout_marginTop="-36dp"
             android:elevation="4dp"
-            android:src="@drawable/ic_action_search"/>
+            app:srcCompat="@drawable/ic_search_toolbar_24dp"
+            tools:src="@drawable/ic_search_toolbar_24dp"/>
     </RelativeLayout>
     <!-- The navigation drawer -->
-    <de.geeksfactory.opacclient.ui.ScrimInsetsFrameLayout
+    <de.geeksfactory.opacclient.ui.AccountSwitcherNavigationView
         android:id="@+id/navdrawer"
-        android:layout_width="320dp"
+        android:layout_width="wrap_content"
         android:layout_height="match_parent"
         android:layout_gravity="start"
-        android:paddingTop="@dimen/padding_status_bar"
-        android:elevation="10dp"
-        android:fitsSystemWindows="true"
-        app:scrimInsetsView_insetForeground="#4000">
-
-        <ListView
-            android:id="@+id/drawer_list"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:layout_gravity="start"
-            android:choiceMode="multipleChoice"
-            android:divider="@android:color/transparent"
-            android:dividerHeight="0dp"
-            android:background="@color/nav_bg"
-            android:listSelector="@drawable/ripple"/>
-    </de.geeksfactory.opacclient.ui.ScrimInsetsFrameLayout>
-</android.support.v4.widget.DrawerLayout>
+        app:headerLayout="@layout/navigation_drawer_header"
+        app:menu="@menu/navigation_drawer"/>
+</androidx.drawerlayout.widget.DrawerLayout>

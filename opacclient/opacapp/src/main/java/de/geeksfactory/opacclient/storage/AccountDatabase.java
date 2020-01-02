@@ -26,60 +26,35 @@ import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteException;
 import android.database.sqlite.SQLiteOpenHelper;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-
-import de.geeksfactory.opacclient.objects.AccountData;
-
 public class AccountDatabase extends SQLiteOpenHelper {
 
+    private static AccountDatabase instance;
     public static final String[] COLUMNS = {"id", "bib", "label", "name",
-            "password", "cached", "pendingFees", "validUntil", "warning"};
-    public static final String[] COLUMNS_NOTIFIED = {"id", "account",
-            "timestamp"};
+            "password", "cached", "pendingFees", "validUntil", "warning", "passwordValid",
+            "supportPolicyHintSeen"};
+    public static final String[] COLUMNS_ALARMS = {"id", "deadline", "media", "alarm",
+            "notified", "finished"};
     // CHANGE THIS
-    public static final Map<String, String> COLUMNS_LENT;
-    public static final Map<String, String> COLUMNS_RESERVATIONS;
-
-    static {
-        Map<String, String> aMap = new HashMap<>();
-        aMap.put(AccountData.KEY_LENT_AUTHOR, "author");
-        aMap.put(AccountData.KEY_LENT_BARCODE, "barcode");
-        aMap.put(AccountData.KEY_LENT_BRANCH, "branch");
-        aMap.put(AccountData.KEY_LENT_DEADLINE, "deadline");
-        aMap.put(AccountData.KEY_LENT_DEADLINE_TIMESTAMP, "deadline_ts");
-        aMap.put(AccountData.KEY_LENT_LENDING_BRANCH, "lending_branch");
-        aMap.put(AccountData.KEY_LENT_LINK, "link");
-        aMap.put(AccountData.KEY_LENT_RENEWABLE, "renewable");
-        aMap.put(AccountData.KEY_LENT_DOWNLOAD, "download");
-        aMap.put(AccountData.KEY_LENT_FORMAT, "format");
-        aMap.put(AccountData.KEY_LENT_STATUS, "status");
-        aMap.put(AccountData.KEY_LENT_TITLE, "title");
-        aMap.put(AccountData.KEY_LENT_ID, "itemid");
-        COLUMNS_LENT = Collections.unmodifiableMap(aMap);
-
-        Map<String, String> bMap = new HashMap<>();
-        bMap.put(AccountData.KEY_RESERVATION_AUTHOR, "author");
-        bMap.put(AccountData.KEY_RESERVATION_BRANCH, "branch");
-        bMap.put(AccountData.KEY_RESERVATION_CANCEL, "cancel");
-        bMap.put(AccountData.KEY_RESERVATION_READY, "ready");
-        bMap.put(AccountData.KEY_RESERVATION_EXPIRE, "expire");
-        bMap.put(AccountData.KEY_RESERVATION_TITLE, "title");
-        bMap.put(AccountData.KEY_RESERVATION_BOOKING, "bookingurl");
-        bMap.put(AccountData.KEY_RESERVATION_ID, "itemid");
-        COLUMNS_RESERVATIONS = Collections.unmodifiableMap(bMap);
-    }
-
+    public static final String[] COLUMNS_LENT = {"id", "account", "title", "author", "format",
+            "itemid", "status", "barcode", "deadline", "homebranch", "lending_branch",
+            "prolong_data", "renewable", "download_data", "ebook", "mediatype", "cover"};
+    public static final String[] COLUMNS_RESERVATIONS = {"id", "account", "title", "author",
+            "format", "itemid", "status", "ready", "expiration", "branch", "cancel_data",
+            "booking_data", "mediatype", "cover"};
     public static final String TABLENAME_ACCOUNTS = "accounts";
     public static final String TABLENAME_LENT = "accountdata_lent";
     public static final String TABLENAME_RESERVATION = "accountdata_reservations";
-    public static final String TABLENAME_NOTIFIED = "notified";
+    public static final String TABLENAME_ALARMS = "alarms";
     private static final String DATABASE_NAME = "accounts.db";
-    private static final int DATABASE_VERSION = 20; // REPLACE ONUPGRADE IF YOU
+    private static final int DATABASE_VERSION = 28; // REPLACE ONUPGRADE IF YOU
 
-    public AccountDatabase(Context context) {
+    private AccountDatabase(Context context) {
         super(context, DATABASE_NAME, null, DATABASE_VERSION);
+    }
+
+    public static synchronized AccountDatabase getInstance(Context context) {
+        if (instance == null) instance = new AccountDatabase(context);
+        return instance;
     }
 
     @Override
@@ -88,21 +63,22 @@ public class AccountDatabase extends SQLiteOpenHelper {
                 + "accounts ( id integer primary key autoincrement,"
                 + " bib text," + " label text," + " name text,"
                 + " password text," + " cached integer," + " pendingFees text,"
-                + " validUntil text," + " warning text" + ");");
-        db.execSQL("create table " + "accountdata_lent ( account integer, "
-                + "title text," + "barcode text," + "author text,"
-                + "deadline text," + "deadline_ts integer," + "status text,"
-                + "branch text," + "lending_branch text," + "link text,"
-                + "itemid text," + "renewable text," + "format text,"
-                + "download text" + ");");
-        db.execSQL("create table "
-                + "accountdata_reservations ( account integer, "
-                + "title text," + "author text," + "ready text,"
-                + "branch text," + "cancel text," + "expire text,"
-                + "itemid text," + "bookingurl text);");
-        db.execSQL("create table "
-                + "notified ( id integer primary key autoincrement, "
-                + "account integer, " + "timestamp integer);");
+                + " validUntil text," + " warning text," + " passwordValid integer," + " supportPolicyHintSeen integer" + ");");
+        db.execSQL(
+                "create table " + "accountdata_lent (" + "id integer primary key autoincrement," +
+                        "account integer," + "title text," + "author text," + "format text," +
+                        "itemid text," + "status text," + "barcode text," + "deadline text," +
+                        "homebranch text," + "lending_branch text," + "prolong_data text," +
+                        "renewable integer," + "download_data text," + "ebook integer," +
+                        "mediatype text," + "cover text" + ");");
+        db.execSQL("create table " + "accountdata_reservations (" +
+                "id integer primary key autoincrement," + "account integer," + "title text," +
+                "author text," + "format text," + "itemid text," + "status text," + "ready text," +
+                "expiration text," + "branch text," + "cancel_data text," + "booking_data text," +
+                "mediatype text," + "cover text" + ");");
+        db.execSQL("create table " + "alarms (" + "id integer primary key autoincrement," +
+                "deadline text," + "media text," + "alarm text," + "notified integer," +
+                "finished integer" + ");");
     }
 
     @Override
@@ -181,8 +157,68 @@ public class AccountDatabase extends SQLiteOpenHelper {
             // App version 3.0.1 to 3.0.2
             db.execSQL("alter table accounts add column warning text");
         }
+        if (oldVersion < 21) {
+            // App version 4.1.11 to 4.2.0
+            // KEY_RESERVATION_FORMAT existed before but was missing in the DB
+            db.execSQL("alter table accountdata_reservations add column format text");
+        }
+        if (oldVersion < 22) {
+            // App version 4.2.0 to 4.2.1
+            // We added KEY_RESERVATION_FORMAT to onUpgrade but didn't in onCreate,
+            // so we need to fix this by adding it again if it does not exist
+            try {
+                db.execSQL("alter table accountdata_reservations add column format text");
+            } catch (Exception e) {
+                // it already exists, do nothing
+            }
+        }
+        if (oldVersion < 23) {
+            // Upgrade to new Notifications implementation using the "alarms" table
+            db.execSQL("drop table notified");
+            db.execSQL("create table " + "alarms (" + " id integer primary key autoincrement," +
+                    " deadline_ts integer," +
+                    " media text," + " alarm_ts integer," + " notified integer," + " finished " +
+                    "integer" + ");");
+        }
+        if (oldVersion < 24) {
+            // Upgrade to new AccountItem implementaion
+            db.execSQL("drop table accountdata_lent");
+            db.execSQL("drop table accountdata_reservations");
+            db.execSQL("create table " + "accountdata_lent (" +
+                    "id integer primary key autoincrement," + "account integer," + "title text," +
+                    "author text," + "format text," + "itemid text," + "status text," +
+                    "barcode text," + "deadline text," + "homebranch text," +
+                    "lending_branch text," + "prolong_data text," + "renewable integer," +
+                    "download_data text," + "ebook integer" + ");");
+            db.execSQL("create table " + "accountdata_reservations (" +
+                    "id integer primary key autoincrement," + "account integer," + "title text," +
+                    "author text," + "format text," + "itemid text," + "status text," +
+                    "ready text," + "expiration text," + "branch text," + "cancel_data text," +
+                    "booking_data text" + ");");
 
-
+            db.execSQL("drop table alarms");
+            db.execSQL("create table " + "alarms (" + "id integer primary key autoincrement," +
+                    "deadline text," + "media text," + "alarm text," + "notified integer," +
+                    "finished integer" + ");");
+        }
+        if (oldVersion < 26) {
+            // App version 4.4.x to 4.5.0
+            // We incremented by one, because I am stupid.
+            try {
+                db.execSQL("alter table accounts add column passwordValid integer");
+            } catch (Exception e) {
+                // it already exists, do nothing
+            }
+        }
+        if (oldVersion < 27) {
+            db.execSQL("alter table accountdata_lent add column mediatype text");
+            db.execSQL("alter table accountdata_lent add column cover text");
+            db.execSQL("alter table accountdata_reservations add column mediatype text");
+            db.execSQL("alter table accountdata_reservations add column cover text");
+        }
+        if (oldVersion < 28) {
+            db.execSQL("alter table accounts add column supportPolicyHintSeen integer");
+        }
     }
 
 }

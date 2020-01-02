@@ -9,9 +9,7 @@ import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
-import android.support.v4.app.Fragment;
 import android.text.InputType;
-import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuInflater;
@@ -21,6 +19,7 @@ import android.view.View.OnClickListener;
 import android.view.ViewGroup;
 import android.view.ViewGroup.LayoutParams;
 import android.view.ViewTreeObserver.OnGlobalLayoutListener;
+import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.ImageView;
@@ -35,23 +34,21 @@ import org.json.JSONException;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import androidx.fragment.app.Fragment;
 import de.geeksfactory.opacclient.OpacClient;
 import de.geeksfactory.opacclient.R;
-import de.geeksfactory.opacclient.SSLSecurityException;
 import de.geeksfactory.opacclient.apis.OpacApi.OpacErrorException;
 import de.geeksfactory.opacclient.barcode.BarcodeScanIntegrator.ScanResult;
 import de.geeksfactory.opacclient.frontend.OpacActivity.AccountSelectedListener;
+import de.geeksfactory.opacclient.networking.SSLSecurityException;
 import de.geeksfactory.opacclient.objects.Account;
-import de.geeksfactory.opacclient.searchfields.AndroidMeaningDetector;
 import de.geeksfactory.opacclient.searchfields.BarcodeSearchField;
 import de.geeksfactory.opacclient.searchfields.CheckboxSearchField;
 import de.geeksfactory.opacclient.searchfields.DropdownSearchField;
-import de.geeksfactory.opacclient.searchfields.MeaningDetector;
 import de.geeksfactory.opacclient.searchfields.SearchField;
 import de.geeksfactory.opacclient.searchfields.SearchField.Meaning;
 import de.geeksfactory.opacclient.searchfields.SearchQuery;
@@ -134,13 +131,6 @@ public class SearchFragment extends Fragment implements AccountSelectedListener 
     }
 
     @Override
-    public void onViewCreated(View view, Bundle savedInstanceState) {
-        if (!(app.getLibrary() == null)) {
-            accountSelected(app.getAccount());
-        }
-    }
-
-    @Override
     public void onActivityCreated(Bundle savedInstanceState) {
         super.onActivityCreated(savedInstanceState);
         if (savedInstanceState != null
@@ -154,6 +144,14 @@ public class SearchFragment extends Fragment implements AccountSelectedListener 
         }
     }
 
+    @Override
+    public void onViewCreated(View view, Bundle savedInstanceState) {
+        super.onViewCreated(view, savedInstanceState);
+        if (!(app.getLibrary() == null)) {
+            accountSelected(app.getAccount());
+        }
+    }
+
     public void clear() {
         if (fields == null) return;
 
@@ -161,14 +159,15 @@ public class SearchFragment extends Fragment implements AccountSelectedListener 
             if (!field.isVisible()) {
                 continue;
             }
+            if (field instanceof TextSearchField && ((TextSearchField) field).isFreeSearch()) {
+                etSimpleSearch.setText("");
+            }
             ViewGroup v = (ViewGroup) view.findViewWithTag(field.getId());
+            if (v == null) {
+                continue;
+            }
             if (field instanceof TextSearchField) {
-                EditText text;
-                if (((TextSearchField) field).isFreeSearch()) {
-                    text = etSimpleSearch;
-                } else {
-                    text = (EditText) v.findViewById(R.id.edittext);
-                }
+                EditText text = (EditText) v.findViewById(R.id.edittext);
                 text.setText("");
             } else if (field instanceof BarcodeSearchField) {
                 EditText text = (EditText) v.findViewById(R.id.edittext);
@@ -183,26 +182,28 @@ public class SearchFragment extends Fragment implements AccountSelectedListener 
         }
     }
 
-    protected void buildSearchForm() {
-        if (app.getLibrary().getReplacedBy() != null
-                && sp.getInt("annoyed", 0) < 5) {
+    protected void buildSearchForm(Map<String, String> restoreQuery) {
+        String skey = "annoyed_" + app.getLibrary().getIdent();
+        if (app.getLibrary().getReplacedBy() != null && !"".equals(app.getLibrary().getReplacedBy())
+                && sp.getInt(skey, 0) < 5 && app.promotePlusApps()) {
             rlReplaced.setVisibility(View.VISIBLE);
             ivReplacedStore.setOnClickListener(
                     new OnClickListener() {
                         @Override
                         public void onClick(View v) {
                             try {
-                                Intent i = new Intent(Intent.ACTION_VIEW, Uri
-                                        .parse("market://details?id="
-                                                + app.getLibrary()
-                                                     .getReplacedBy()));
+                                Intent i = new Intent(Intent.ACTION_VIEW,
+                                        Uri.parse(app.getLibrary().getReplacedBy()
+                                                     .replace("https://play.google.com/store/apps/details?id=", "market://details?id=")));
                                 startActivity(i);
                             } catch (ActivityNotFoundException e) {
-                                Log.i("play", "no market installed");
+                                Intent i = new Intent(Intent.ACTION_VIEW,
+                                        Uri.parse(app.getLibrary().getReplacedBy()));
+                                startActivity(i);
                             }
                         }
                     });
-            sp.edit().putInt("annoyed", sp.getInt("annoyed", 0) + 1).commit();
+            sp.edit().putInt(skey, sp.getInt(skey, 0) + 1).apply();
         } else {
             rlReplaced.setVisibility(View.GONE);
         }
@@ -236,7 +237,7 @@ public class SearchFragment extends Fragment implements AccountSelectedListener 
                     tvSearchAdvHeader.setVisibility(View.VISIBLE);
                     etSimpleSearch.setHint(textSearchField.getHint());
                 } else {
-                    v = (ViewGroup) getLayoutInflater(null).inflate(
+                    v = (ViewGroup) getActivity().getLayoutInflater().inflate(
                             R.layout.searchfield_text, llFormFields, false);
                     TextView title = (TextView) v.findViewById(R.id.title);
                     title.setText(textSearchField.getDisplayName());
@@ -267,7 +268,7 @@ public class SearchFragment extends Fragment implements AccountSelectedListener 
                 }
             } else if (field instanceof BarcodeSearchField) {
                 BarcodeSearchField bcSearchField = (BarcodeSearchField) field;
-                v = (ViewGroup) getLayoutInflater(null).inflate(
+                v = (ViewGroup) getActivity().getLayoutInflater().inflate(
                         R.layout.searchfield_barcode, llFormFields, false);
                 TextView title = (TextView) v.findViewById(R.id.title);
                 title.setText(bcSearchField.getDisplayName());
@@ -295,14 +296,18 @@ public class SearchFragment extends Fragment implements AccountSelectedListener 
                 }
             } else if (field instanceof DropdownSearchField) {
                 DropdownSearchField ddSearchField = (DropdownSearchField) field;
-                v = (ViewGroup) getLayoutInflater(null).inflate(
+                if (ddSearchField.getDropdownValues() == null) {
+                    continue;
+                }
+                v = (ViewGroup) getActivity().getLayoutInflater().inflate(
                         R.layout.searchfield_dropdown, llFormFields, false);
                 TextView title = (TextView) v.findViewById(R.id.title);
                 title.setText(ddSearchField.getDisplayName());
                 Spinner spinner = (Spinner) v.findViewById(R.id.spinner);
-                spinner.setAdapter(((OpacActivity) getActivity()).new MetaAdapter(
-                        getActivity(), ddSearchField.getDropdownValues(),
-                        R.layout.simple_spinner_item));
+                spinner.setAdapter(
+                        ((OpacActivity) getActivity()).new MetaAdapter<DropdownSearchField.Option>(
+                                getActivity(), ddSearchField.getDropdownValues(),
+                                R.layout.simple_spinner_item));
 
                 // Load saved home branch
                 if (field.getMeaning() == Meaning.HOME_BRANCH) {
@@ -322,9 +327,9 @@ public class SearchFragment extends Fragment implements AccountSelectedListener 
                     }
                     if (!selection.equals("")) {
                         int j = 0;
-                        for (Map<String, String> row : ddSearchField
+                        for (DropdownSearchField.Option row : ddSearchField
                                 .getDropdownValues()) {
-                            if (row.get("key").equals(selection)) {
+                            if (row.getKey().equals(selection)) {
                                 spinner.setSelection(j);
                             }
                             j++;
@@ -333,7 +338,7 @@ public class SearchFragment extends Fragment implements AccountSelectedListener 
                 }
             } else if (field instanceof CheckboxSearchField) {
                 CheckboxSearchField cbSearchField = (CheckboxSearchField) field;
-                v = (ViewGroup) getLayoutInflater(null).inflate(
+                v = (ViewGroup) getActivity().getLayoutInflater().inflate(
                         R.layout.searchfield_checkbox, llFormFields, false);
                 CheckBox checkbox = (CheckBox) v.findViewById(R.id.checkbox);
                 checkbox.setText(cbSearchField.getDisplayName());
@@ -350,12 +355,16 @@ public class SearchFragment extends Fragment implements AccountSelectedListener 
         }
         llExpand.setVisibility(llAdvancedFields.getChildCount() == 0 ? View.GONE
                 : View.VISIBLE);
+
+        if (restoreQuery != null) {
+            loadQuery(restoreQuery);
+        }
     }
 
     protected void setAdvanced(boolean advanced) {
         this.advanced = advanced;
         if (advanced) {
-            ivExpandIcon.setImageResource(R.drawable.ic_action_collapse);
+            ivExpandIcon.setImageResource(R.drawable.ic_collapse_24dp);
             tvExpandString.setText(R.string.collapse);
             llAdvancedFields.setVisibility(View.VISIBLE);
             rlOuter.getViewTreeObserver().addOnGlobalLayoutListener(
@@ -368,7 +377,7 @@ public class SearchFragment extends Fragment implements AccountSelectedListener 
                         }
                     });
         } else {
-            ivExpandIcon.setImageResource(R.drawable.ic_action_expand);
+            ivExpandIcon.setImageResource(R.drawable.ic_expand_24dp);
             tvExpandString.setText(R.string.expand);
             llAdvancedFields.setVisibility(View.GONE);
 
@@ -397,14 +406,16 @@ public class SearchFragment extends Fragment implements AccountSelectedListener 
         errorView.removeAllViews();
         progress(false);
 
+        if (!app.getLibrary().isActive()) {
+            showConnectivityError(getString(R.string.library_removed_error), false);
+            return;
+        }
+
         SearchFieldDataSource dataSource = new JsonSearchFieldDataSource(app);
         int versionCode = 0;
         try {
-            versionCode = app.getPackageManager().getPackageInfo(
-                    app.getPackageName(), 0).versionCode;
+            versionCode = getActivity().getPackageManager().getPackageInfo(getActivity().getPackageName(), 0).versionCode;
         } catch (NameNotFoundException e) {
-            // should not happen
-            e.printStackTrace();
         }
         String language = getActivity().getResources().getConfiguration().locale
                 .getLanguage();
@@ -416,11 +427,10 @@ public class SearchFragment extends Fragment implements AccountSelectedListener 
             if (task != null && !task.isCancelled()) {
                 task.cancel(true);
             }
+            Map<String, String> saved = saveQuery();
             fields = dataSource.getSearchFields(app.getLibrary().getIdent());
-            buildSearchForm();
-            if (savedState != null) {
-                loadQuery(savedState);
-            }
+            buildSearchForm(savedState != null ? OpacClient.bundleToMap(savedState) : saved);
+            savedState = null;
         } else {
             executeNewLoadSearchFieldsTask();
         }
@@ -435,24 +445,29 @@ public class SearchFragment extends Fragment implements AccountSelectedListener 
     }
 
     public void showConnectivityError() {
-        showConnectivityError(null);
+        showConnectivityError(null, true);
     }
 
-    public void showConnectivityError(String description) {
+    public void showConnectivityError(String description, boolean retry) {
         if (getView() == null || getActivity() == null) {
             return;
         }
         errorView.removeAllViews();
         View connError = getActivity().getLayoutInflater().inflate(
                 R.layout.error_connectivity, errorView);
-        connError.findViewById(R.id.btRetry)
-                 .setOnClickListener(new OnClickListener() {
-                     @Override
-                     public void onClick(View v) {
-                         errorView.removeAllViews();
-                         executeNewLoadSearchFieldsTask();
-                     }
-                 });
+        Button btnRetry = (Button) connError.findViewById(R.id.btRetry);
+        if (retry) {
+            btnRetry.setVisibility(View.VISIBLE);
+            btnRetry.setOnClickListener(new OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    errorView.removeAllViews();
+                    executeNewLoadSearchFieldsTask();
+                }
+            });
+        } else {
+            btnRetry.setVisibility(View.GONE);
+        }
 
         if (description != null) {
             ((TextView) connError.findViewById(R.id.tvErrBody))
@@ -511,6 +526,9 @@ public class SearchFragment extends Fragment implements AccountSelectedListener 
                 }
                 fields = dataSource
                         .getSearchFields(app.getLibrary().getIdent());
+                if (fields == null) {
+                    return null;
+                }
             } else {
                 return null;
             }
@@ -521,17 +539,17 @@ public class SearchFragment extends Fragment implements AccountSelectedListener 
                 continue;
             }
 
+            if (field instanceof TextSearchField && ((TextSearchField) field).isFreeSearch()) {
+                query.put(field.getId(), etSimpleSearch.getEditableText().toString());
+                continue;
+            }
+
             ViewGroup v = (ViewGroup) view.findViewWithTag(field.getId());
             if (v == null) {
-                return null;
+                continue;
             }
             if (field instanceof TextSearchField) {
-                EditText text;
-                if (((TextSearchField) field).isFreeSearch()) {
-                    text = etSimpleSearch;
-                } else {
-                    text = (EditText) v.findViewById(R.id.edittext);
-                }
+                EditText text = (EditText) v.findViewById(R.id.edittext);
                 query.put(field.getId(), text.getEditableText().toString());
             } else if (field instanceof BarcodeSearchField) {
                 EditText text = (EditText) v.findViewById(R.id.edittext);
@@ -542,7 +560,7 @@ public class SearchFragment extends Fragment implements AccountSelectedListener 
                     query.put(field.getId(),
                             ((DropdownSearchField) field).getDropdownValues()
                                                          .get(spinner.getSelectedItemPosition())
-                                                         .get("key"));
+                                                         .getKey());
                 }
             } else if (field instanceof CheckboxSearchField) {
                 CheckBox checkbox = (CheckBox) v.findViewById(R.id.checkbox);
@@ -555,7 +573,7 @@ public class SearchFragment extends Fragment implements AccountSelectedListener 
     public List<SearchQuery> saveSearchQuery() {
         saveHomeBranch();
         List<SearchQuery> query = new ArrayList<>();
-        if (fields == null) {
+        if (fields == null || view == null) {
             return null;
         }
         for (SearchField field : fields) {
@@ -568,25 +586,29 @@ public class SearchFragment extends Fragment implements AccountSelectedListener 
                 if (((TextSearchField) field).isFreeSearch()) {
                     text = etSimpleSearch;
                 } else {
+                    if (v == null) continue;
                     text = (EditText) v.findViewById(R.id.edittext);
                 }
                 query.add(new SearchQuery(field, text.getEditableText()
-                                                     .toString()));
+                                                     .toString().trim()));
             } else if (field instanceof BarcodeSearchField) {
+                if (v == null) continue;
                 EditText text = (EditText) v.findViewById(R.id.edittext);
                 query.add(new SearchQuery(field, text.getEditableText()
-                                                     .toString()));
+                                                     .toString().trim()));
             } else if (field instanceof DropdownSearchField) {
+                if (v == null) continue;
                 Spinner spinner = (Spinner) v.findViewById(R.id.spinner);
                 if (spinner.getSelectedItemPosition() != -1) {
                     String key = ((DropdownSearchField) field)
                             .getDropdownValues()
-                            .get(spinner.getSelectedItemPosition()).get("key");
+                            .get(spinner.getSelectedItemPosition()).getKey();
                     if (!key.equals("")) {
                         query.add(new SearchQuery(field, key));
                     }
                 }
             } else if (field instanceof CheckboxSearchField) {
+                if (v == null) continue;
                 CheckBox checkbox = (CheckBox) v.findViewById(R.id.checkbox);
                 query.add(new SearchQuery(field, String.valueOf(checkbox
                         .isChecked())));
@@ -596,7 +618,7 @@ public class SearchFragment extends Fragment implements AccountSelectedListener 
     }
 
     private void saveHomeBranch() {
-        if (fields == null) {
+        if (fields == null || view == null) {
             return;
         }
 
@@ -607,20 +629,27 @@ public class SearchFragment extends Fragment implements AccountSelectedListener 
             if (field instanceof DropdownSearchField
                     && field.getMeaning() == Meaning.HOME_BRANCH) {
                 ViewGroup v = (ViewGroup) view.findViewWithTag(field.getId());
+                if (v == null) {
+                    continue;
+                }
                 Spinner spinner = (Spinner) v.findViewById(R.id.spinner);
                 String homeBranch = ((DropdownSearchField) field)
                         .getDropdownValues()
-                        .get(spinner.getSelectedItemPosition()).get("key");
+                        .get(spinner.getSelectedItemPosition()).getKey();
                 if (!homeBranch.equals("")) {
                     sp.edit()
-                      .putString(
-                              OpacClient.PREF_HOME_BRANCH_PREFIX
-                                      + app.getAccount().getId(),
-                              homeBranch).commit();
+                      .putString(OpacClient.PREF_HOME_BRANCH_PREFIX + app.getAccount().getId(),
+                              homeBranch).apply();
+                } else {
+                    sp.edit().remove(OpacClient.PREF_HOME_BRANCH_PREFIX + app.getAccount().getId()).apply();
                 }
                 return;
             }
         }
+    }
+
+    public void loadQuery(Map<String, String> query) {
+        loadQuery(OpacClient.mapToBundle(query));
     }
 
     public void loadQuery(Bundle query) {
@@ -632,6 +661,9 @@ public class SearchFragment extends Fragment implements AccountSelectedListener 
                 continue;
             }
             ViewGroup v = (ViewGroup) view.findViewWithTag(field.getId());
+            if (v == null) {
+                continue;
+            }
             if (field instanceof TextSearchField) {
                 EditText text;
                 if (((TextSearchField) field).isFreeSearch()) {
@@ -646,9 +678,12 @@ public class SearchFragment extends Fragment implements AccountSelectedListener 
             } else if (field instanceof DropdownSearchField) {
                 Spinner spinner = (Spinner) v.findViewById(R.id.spinner);
                 int i = 0;
-                for (Map<String, String> map : ((DropdownSearchField) field)
+                if (((DropdownSearchField) field).getDropdownValues() == null) {
+                    continue;
+                }
+                for (DropdownSearchField.Option map : ((DropdownSearchField) field)
                         .getDropdownValues()) {
-                    if (map.get("key").equals(query.getString(field.getId()))) {
+                    if (map.getKey().equals(query.getString(field.getId()))) {
                         spinner.setSelection(i);
                         break;
                     }
@@ -715,14 +750,8 @@ public class SearchFragment extends Fragment implements AccountSelectedListener 
 
     public void barcodeScanned(ScanResult scanResult) {
         this.scanResult = scanResult;
-        if (barcodeScanningField != null) {
-            ViewGroup v = (ViewGroup) view
-                    .findViewWithTag(barcodeScanningField);
-            EditText text = (EditText) v.findViewById(R.id.edittext);
-            text.setText(scanResult.getContents());
-            barcodeScanningField = null;
-            this.scanResult = null;
-        }
+        loadQuery(new Bundle());
+        savedState = OpacClient.mapToBundle(saveQuery());
     }
 
     public interface Callback {
@@ -750,18 +779,11 @@ public class SearchFragment extends Fragment implements AccountSelectedListener 
                     throw new OpacErrorException(
                             getString(R.string.no_fields_found));
                 }
-                if (app.getApi().shouldUseMeaningDetector()) {
-                    MeaningDetector md = new AndroidMeaningDetector(
-                            getActivity(), app.getLibrary());
-                    for (int i = 0; i < fields.size(); i++) {
-                        fields.set(i, md.detectMeaning(fields.get(i)));
-                    }
-                    Collections.sort(fields, new SearchField.OrderComparator());
-                }
 
                 saveFields(fields);
                 return fields;
-            } catch (OpacErrorException | IOException | JSONException e) {
+            } catch (OpacErrorException | IOException | JSONException | OpacClient
+                    .LibraryRemovedException e) {
                 exception = e;
                 e.printStackTrace();
             }
@@ -776,17 +798,16 @@ public class SearchFragment extends Fragment implements AccountSelectedListener 
             progress(false);
             if (fields != null) {
                 SearchFragment.this.fields = fields;
-                buildSearchForm();
-                if (savedState != null) {
-                    loadQuery(savedState);
-                }
+                buildSearchForm(savedState != null ? OpacClient.bundleToMap(savedState) : null);
+                savedState = null;
             } else {
                 if (exception != null
                         && exception instanceof OpacErrorException) {
-                    showConnectivityError(exception.getMessage());
+                    showConnectivityError(exception.getMessage(), true);
                 } else if (exception != null
                         && exception instanceof SSLSecurityException) {
-                    showConnectivityError(getString(R.string.connection_error_detail_security));
+                    showConnectivityError(getString(R.string.connection_error_detail_security),
+                            true);
                 } else {
                     showConnectivityError();
                 }

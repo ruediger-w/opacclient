@@ -1,31 +1,27 @@
 /**
  * Copyright (C) 2013 by Raphael Michel under the MIT license:
  *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense,
- * and/or sell copies of the Software, and to permit persons to whom the Software
- * is furnished to do so, subject to the following conditions:
+ * Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
+ * associated documentation files (the "Software"), to deal in the Software without restriction,
+ * including without limitation the rights to use, copy, modify, merge, publish, distribute,
+ * sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
  *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
+ * The above copyright notice and this permission notice shall be included in all copies or
+ * substantial portions of the Software.
  *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
- * IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
- * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
- * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
- * DEALINGS IN THE SOFTWARE.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT
+ * NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+ * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 package de.geeksfactory.opacclient.frontend;
 
 import android.annotation.SuppressLint;
-import android.app.NotificationManager;
+import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.DialogInterface;
-import android.content.DialogInterface.OnCancelListener;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
@@ -35,12 +31,8 @@ import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Handler;
 import android.preference.PreferenceManager;
-import android.support.v4.app.ActivityCompat;
-import android.support.v4.app.ActivityOptionsCompat;
-import android.support.v4.app.Fragment;
-import android.support.v4.widget.SwipeRefreshLayout;
-import android.support.v7.app.AlertDialog;
 import android.text.Html;
+import android.text.method.LinkMovementMethod;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuInflater;
@@ -50,42 +42,40 @@ import android.view.View.OnClickListener;
 import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
+import android.widget.CheckBox;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ListView;
-import android.widget.ScrollView;
+import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import com.nineoldandroids.animation.Animator;
-import com.nineoldandroids.animation.ObjectAnimator;
-import com.nineoldandroids.view.ViewHelper;
-
-import org.apache.http.HttpResponse;
-import org.apache.http.NameValuePair;
 import org.apache.http.NoHttpResponseException;
-import org.apache.http.client.HttpClient;
-import org.apache.http.client.entity.UrlEncodedFormEntity;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.impl.client.HttpClientBuilder;
-import org.apache.http.message.BasicNameValuePair;
+import org.joda.time.LocalDateTime;
+import org.joda.time.format.DateTimeFormat;
+import org.joda.time.format.DateTimeFormatter;
 import org.json.JSONException;
 
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
-import java.util.ArrayList;
-import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import de.geeksfactory.opacclient.NotReachableException;
+import androidx.appcompat.app.AlertDialog;
+import androidx.core.app.ActivityCompat;
+import androidx.core.app.ActivityOptionsCompat;
+import androidx.fragment.app.Fragment;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 import de.geeksfactory.opacclient.OpacClient;
 import de.geeksfactory.opacclient.R;
-import de.geeksfactory.opacclient.SSLSecurityException;
 import de.geeksfactory.opacclient.apis.EbookServiceApi;
 import de.geeksfactory.opacclient.apis.EbookServiceApi.BookingResult;
+import de.geeksfactory.opacclient.apis.Littera;
 import de.geeksfactory.opacclient.apis.OpacApi;
 import de.geeksfactory.opacclient.apis.OpacApi.CancelResult;
 import de.geeksfactory.opacclient.apis.OpacApi.MultiStepResult;
@@ -93,26 +83,55 @@ import de.geeksfactory.opacclient.apis.OpacApi.OpacErrorException;
 import de.geeksfactory.opacclient.apis.OpacApi.ProlongAllResult;
 import de.geeksfactory.opacclient.apis.OpacApi.ProlongResult;
 import de.geeksfactory.opacclient.apis.OpacApi.ReservationResult;
+import de.geeksfactory.opacclient.apis.Primo;
+import de.geeksfactory.opacclient.apis.VuFind;
+import de.geeksfactory.opacclient.apis.Zones;
 import de.geeksfactory.opacclient.frontend.MultiStepResultHelper.Callback;
 import de.geeksfactory.opacclient.frontend.MultiStepResultHelper.StepTask;
 import de.geeksfactory.opacclient.frontend.OpacActivity.AccountSelectedListener;
+import de.geeksfactory.opacclient.frontend.adapter.AccountAdapter;
+import de.geeksfactory.opacclient.frontend.adapter.LentAdapter;
+import de.geeksfactory.opacclient.frontend.adapter.ReservationsAdapter;
+import de.geeksfactory.opacclient.networking.NotReachableException;
+import de.geeksfactory.opacclient.networking.SSLSecurityException;
 import de.geeksfactory.opacclient.objects.Account;
 import de.geeksfactory.opacclient.objects.AccountData;
-import de.geeksfactory.opacclient.objects.DetailledItem;
+import de.geeksfactory.opacclient.objects.AccountItem;
+import de.geeksfactory.opacclient.objects.DetailedItem;
+import de.geeksfactory.opacclient.objects.LentItem;
 import de.geeksfactory.opacclient.objects.Library;
+import de.geeksfactory.opacclient.objects.ReservedItem;
+import de.geeksfactory.opacclient.reminder.ReminderHelper;
+import de.geeksfactory.opacclient.reminder.SyncAccountJob;
 import de.geeksfactory.opacclient.storage.AccountDataSource;
-import de.geeksfactory.opacclient.ui.AppCompatProgressDialog;
-import de.geeksfactory.opacclient.ui.ExpandingCardListManager;
+import de.geeksfactory.opacclient.storage.PreferenceDataSource;
+import de.geeksfactory.opacclient.ui.AccountDividerItemDecoration;
 import de.geeksfactory.opacclient.utils.ErrorReporter;
+import su.j2e.rvjoiner.JoinableAdapter;
+import su.j2e.rvjoiner.JoinableLayout;
+import su.j2e.rvjoiner.RvJoiner;
 
 public class AccountFragment extends Fragment implements
-        AccountSelectedListener {
+        AccountSelectedListener, LentAdapter.Callback, ReservationsAdapter.Callback {
 
     public static final long MAX_CACHE_AGE = (1000 * 3600 * 2);
-    protected AppCompatProgressDialog dialog;
+    private static final int REQUEST_DETAIL = 1;
     protected AlertDialog adialog;
     protected OpacClient app;
     protected View view;
+    protected FrameLayout errorView;
+    protected View unsupportedErrorView, answerErrorView;
+    protected SwipeRefreshLayout swipeRefreshLayout;
+    protected Button btPrefs;
+    protected LinearLayout llLoading;
+    protected TextView tvError, tvResHeader, tvPendingFeesLabel, tvPendingFees, tvValidUntilLabel,
+            tvValidUntil, tvAge, tvLentHeader, tvWarning, tvAccCity, tvAccUser, tvAccLabel,
+            tvErrBodyA, tvErrHeadA, tvErrBodyU;
+    protected LentAdapter lentAdapter;
+    protected RelativeLayout rlReplaced;
+    protected ImageView ivReplacedStore;
+    protected ReservationsAdapter resAdapter;
+    protected AccountData accountData;
     private LoadTask lt;
     private CancelTask ct;
     private DownloadTask dt;
@@ -121,27 +140,27 @@ public class AccountFragment extends Fragment implements
     private long refreshtime;
     private boolean fromcache;
     private boolean supported = true;
+    private JoinableLayout lentEmpty;
+    private JoinableLayout reservationsEmpty;
+    private TextView tvLentEmpty;
+    private TextView tvReservationsEmpty;
+    protected static Set<Class<? extends OpacApi>> HELP_WANTED_APIS = new HashSet<>();
 
-    protected ScrollView svAccount;
-    protected FrameLayout errorView;
-    protected View unsupportedErrorView, answerErrorView;
-    protected SwipeRefreshLayout swipeRefreshLayout;
-    protected Button btSend, btPrefs;
-    protected LinearLayout llLent, llRes, llLoading;
-    protected TextView tvError, tvResHeader, tvPendingFeesLabel, tvPendingFees, tvValidUntilLabel,
-            tvValidUntil, tvAge, tvLentHeader, tvWarning, tvAccCity, tvAccUser, tvAccLabel,
-            tvErrBodyA, tvErrHeadA, tvErrBodyU;
-    protected ExpandingCardListManager lentManager;
-    protected ExpandingCardListManager resManager;
+    static {
+        HELP_WANTED_APIS.add(Littera.class);
+        HELP_WANTED_APIS.add(Primo.class);
+        HELP_WANTED_APIS.add(VuFind.class);
+        HELP_WANTED_APIS.add(Zones.class); // Zones 1.8
+    }
 
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
             Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         view = inflater.inflate(R.layout.fragment_account, container, false);
-        findViews();
         app = (OpacClient) getActivity().getApplication();
         account = app.getAccount();
+        findViews();
 
         swipeRefreshLayout.setColorSchemeResources(R.color.primary_red);
         swipeRefreshLayout.setOnRefreshListener(new SwipeRefreshLayout.OnRefreshListener() {
@@ -151,43 +170,14 @@ public class AccountFragment extends Fragment implements
             }
         });
 
-        if (getActivity().getIntent().getExtras() != null) {
-            if (getActivity().getIntent().getExtras()
-                             .containsKey("notifications")) {
-                AccountDataSource adata = new AccountDataSource(getActivity());
-                adata.open();
-                Bundle notif = getActivity().getIntent().getExtras()
-                                            .getBundle("notifications");
-                Set<String> keys = notif.keySet();
-                for (String key : keys) {
-                    long[] val = notif.getLongArray(key);
-                    adata.notificationSave(val[0], val[1]);
-                }
-                adata.close();
-
-                if (getActivity().getIntent().getExtras().getLong("account") != app
-                        .getAccount().getId()) {
-                    app.setAccount(getActivity().getIntent().getExtras()
-                                                .getLong("account"));
-                    ((OpacActivity) getActivity()).accountSelected(app
-                            .getAccount());
-                }
-                NotificationManager nMgr = (NotificationManager) getActivity()
-                        .getSystemService(Context.NOTIFICATION_SERVICE);
-                nMgr.cancel(OpacClient.NOTIF_ID);
-            }
-        }
-
         setHasOptionsMenu(true);
-
-        accountSelected(app.getAccount());
 
         final Handler handler = new Handler();
         // schedule alarm here and post runnable as soon as scheduled
         handler.post(new Runnable() {
             @Override
             public void run() {
-                refreshage();
+                displayAge();
                 handler.postDelayed(this, 60000);
             }
         });
@@ -197,37 +187,149 @@ public class AccountFragment extends Fragment implements
 
     private void findViews() {
         swipeRefreshLayout = (SwipeRefreshLayout) view.findViewById(R.id.swipe_container);
-        svAccount = (ScrollView) view.findViewById(R.id.svAccount);
         errorView = (FrameLayout) view.findViewById(R.id.error_view);
         unsupportedErrorView = view.findViewById(R.id.unsupported_error);
         answerErrorView = view.findViewById(R.id.answer_error);
         llLoading = (LinearLayout) view.findViewById(R.id.llLoading);
         tvErrBodyU = (TextView) view.findViewById(R.id.tvErrBodyU);
-        btSend = (Button) view.findViewById(R.id.btSend);
         btPrefs = (Button) view.findViewById(R.id.btPrefs);
         tvErrHeadA = (TextView) view.findViewById(R.id.tvErrHeadA);
         tvErrBodyA = (TextView) view.findViewById(R.id.tvErrBodyA);
+        tvLentEmpty = (TextView) view.findViewById(R.id.emptyLent);
+        rlReplaced = (RelativeLayout) view.findViewById(R.id.rlReplaced);
+        ivReplacedStore = (ImageView) view.findViewById(R.id.ivReplacedStore);
+        tvReservationsEmpty = (TextView) view.findViewById(R.id.emptyReservations);
+
+        lentAdapter = new LentAdapter(this);
+        try {
+            lentAdapter.setApi(app.getApi());
+        } catch (NullPointerException e) {
+            e.printStackTrace();
+            return;
+        } catch (OpacClient.LibraryRemovedException e) {
+            e.printStackTrace();
+        }
+        displayLentItems();
+        resAdapter = new ReservationsAdapter(this);
+        try {
+            resAdapter.setApi(app.getApi());
+        } catch (OpacClient.LibraryRemovedException e) {
+            e.printStackTrace();
+        }
+        displayReservedItems();
+
+        if (view.findViewById(R.id.rlAccHeader) != null) {
+            // tablet
+            RecyclerView rvLent = (RecyclerView) view.findViewById(R.id.rvLent);
+            rvLent.setLayoutManager(new LinearLayoutManager(getActivity()));
+            rvLent.setAdapter(lentAdapter);
+            rvLent.addItemDecoration(new AccountDividerItemDecoration(getContext(), null));
+
+            RecyclerView rvReservations = (RecyclerView) view.findViewById(R.id.rvReservations);
+            rvReservations.setLayoutManager(new LinearLayoutManager(getActivity()));
+            rvReservations.setAdapter(resAdapter);
+            rvReservations.addItemDecoration(new AccountDividerItemDecoration(getContext(), null));
+
+            findHeaderViews(view);
+            findErrorWarningViews(view);
+            findLentHeader(view);
+            findResHeader(view);
+            findFooterViews(view);
+        } else {
+            // phone
+            RecyclerView rv = (RecyclerView) view.findViewById(R.id.rvAccountData);
+            rv.setLayoutManager(new LinearLayoutManager(getActivity()));
+            RvJoiner joiner = new RvJoiner();
+            rv.addItemDecoration(new AccountDividerItemDecoration(getContext(), joiner));
+
+            joiner.add(new JoinableLayout(R.layout.account_header, new JoinableLayout.Callback() {
+                @Override
+                public void onInflateComplete(View view, ViewGroup parent) {
+                    findHeaderViews(view);
+                }
+            }));
+            joiner.add(
+                    new JoinableLayout(R.layout.account_error_warning,
+                            new JoinableLayout.Callback() {
+                                @Override
+                                public void onInflateComplete(View view, ViewGroup parent) {
+                                    findErrorWarningViews(view);
+                                }
+                            }));
+            joiner.add(
+                    new JoinableLayout(R.layout.account_header_lent, new JoinableLayout.Callback() {
+                        @Override
+                        public void onInflateComplete(View view, ViewGroup parent) {
+                            findLentHeader(view);
+                        }
+                    }));
+            lentEmpty = new JoinableLayout(R.layout.listitem_account_empty_lent);
+            joiner.add(lentEmpty);
+            joiner.add(new JoinableAdapter(lentAdapter));
+            joiner.add(new JoinableLayout(R.layout.account_header_reservations,
+                    new JoinableLayout.Callback() {
+                        @Override
+                        public void onInflateComplete(View view, ViewGroup parent) {
+                            findResHeader(view);
+                        }
+                    }));
+            joiner.add(new JoinableAdapter(resAdapter));
+            reservationsEmpty = new JoinableLayout(R.layout.listitem_account_empty_reservations);
+            joiner.add(reservationsEmpty);
+            joiner.add(new JoinableLayout(R.layout.account_footer, new JoinableLayout.Callback() {
+                @Override
+                public void onInflateComplete(View view, ViewGroup parent) {
+                    findFooterViews(view);
+                }
+            }));
+
+            rv.setAdapter(joiner.getAdapter());
+        }
+    }
+
+    private void findFooterViews(View view) {
+        tvAge = (TextView) view.findViewById(R.id.tvAge);
+        displayAge();
+    }
+
+    private void findResHeader(View view) {
+        tvResHeader = (TextView) view.findViewById(R.id.tvResHeader);
+        displayResHeader();
+    }
+
+    private void findLentHeader(View view) {
+        tvLentHeader = (TextView) view.findViewById(R.id.tvLentHeader);
+        displayLentHeader();
+    }
+
+    private void findErrorWarningViews(View view) {
+        tvError = (TextView) view.findViewById(R.id.tvError);
+        tvWarning = (TextView) view.findViewById(R.id.tvWarning);
+    }
+
+    private void findHeaderViews(View view) {
         tvAccLabel = (TextView) view.findViewById(R.id.tvAccLabel);
         tvAccUser = (TextView) view.findViewById(R.id.tvAccUser);
         tvAccCity = (TextView) view.findViewById(R.id.tvAccCity);
-        llLent = (LinearLayout) view.findViewById(R.id.llLent);
-        tvWarning = (TextView) view.findViewById(R.id.tvWarning);
-        tvLentHeader = (TextView) view.findViewById(R.id.tvLentHeader);
-        llRes = (LinearLayout) view.findViewById(R.id.llReservations);
-        tvError = (TextView) view.findViewById(R.id.tvError);
-        tvResHeader = (TextView) view.findViewById(R.id.tvResHeader);
         tvPendingFeesLabel = (TextView) view.findViewById(R.id.tvPendingFeesLabel);
         tvPendingFees = (TextView) view.findViewById(R.id.tvPendingFees);
         tvValidUntilLabel = (TextView) view.findViewById(R.id.tvValidUntilLabel);
         tvValidUntil = (TextView) view.findViewById(R.id.tvValidUntil);
-        tvAge = (TextView) view.findViewById(R.id.tvAge);
+        displayHeader();
     }
 
     @SuppressLint("NewApi")
     @Override
     public void onCreateOptionsMenu(Menu menu, MenuInflater inflater) {
         inflater.inflate(R.menu.activity_account, menu);
-        if ((app.getApi().getSupportFlags() & OpacApi.SUPPORT_FLAG_ACCOUNT_PROLONG_ALL) != 0) {
+        OpacApi api;
+        try {
+            api = app.getApi();
+        } catch (OpacClient.LibraryRemovedException e) {
+            return;
+        }
+        if (app.getAccount() != null && (
+                api.getSupportFlags() & OpacApi.SUPPORT_FLAG_ACCOUNT_PROLONG_ALL) != 0) {
             menu.findItem(R.id.action_prolong_all).setVisible(true);
         } else {
             menu.findItem(R.id.action_prolong_all).setVisible(false);
@@ -239,11 +341,106 @@ public class AccountFragment extends Fragment implements
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         if (item.getItemId() == R.id.action_refresh) {
+            PreferenceDataSource prefs = new PreferenceDataSource(getActivity());
+            if (prefs.getAccountPtrHintShown() < 2) {
+                Toast.makeText(getActivity(), R.string.account_ptr_hint, Toast.LENGTH_LONG).show();
+                prefs.setAccountPtrHintShown(prefs.getAccountPtrHintShown() + 1);
+            }
             refresh();
         } else if (item.getItemId() == R.id.action_prolong_all) {
             prolongAllStart();
+        } else if (item.getItemId() == R.id.action_export) {
+            export();
         }
         return super.onOptionsItemSelected(item);
+    }
+
+    private void export() {
+        if (refreshing) {
+            Toast.makeText(getActivity(), R.string.account_no_concurrent,
+                    Toast.LENGTH_LONG).show();
+            if (!refreshing) {
+                refresh();
+            }
+            return;
+        }
+
+        Context ctx = getActivity() != null ? getActivity() : OpacClient
+                .getEmergencyContext();
+        AccountDataSource adatasource = new AccountDataSource(ctx);
+        AccountData data = adatasource.getCachedAccountData(account);
+        LocalDateTime dt = new LocalDateTime(adatasource.getCachedAccountDataTime(account));
+
+        if (data == null) return;
+
+        StringBuilder string = new StringBuilder();
+
+        DateTimeFormatter fmt1 = DateTimeFormat.shortDateTime().withLocale(
+                getResources().getConfiguration().locale);
+        DateTimeFormatter fmt2 = DateTimeFormat.shortDate().withLocale(
+                getResources().getConfiguration().locale);
+        String dateStr = fmt1.print(dt);
+        string.append(getResources()
+                .getString(R.string.accountdata_export_header, account.getLabel(), dateStr));
+        string.append("\n\n");
+        string.append(getResources().getString(R.string.lent_head));
+        string.append("\n\n");
+        for (LentItem item : data.getLent()) {
+            appendIfNotEmpty(string, item.getTitle(), R.string.accountdata_title);
+            appendIfNotEmpty(string, item.getAuthor(), R.string.accountdata_author);
+            appendIfNotEmpty(string, item.getFormat(), R.string.accountdata_format);
+            appendIfNotEmpty(string, item.getStatus(), R.string.accountdata_status);
+            appendIfNotEmpty(string, item.getBarcode(), R.string.accountdata_lent_barcode);
+            if (item.getDeadline() != null) {
+                appendIfNotEmpty(string, fmt2.print(item.getDeadline()),
+                        R.string.accountdata_lent_deadline);
+            }
+            appendIfNotEmpty(string, item.getHomeBranch(), R.string.accountdata_lent_home_branch);
+            appendIfNotEmpty(string, item.getLendingBranch(),
+                    R.string.accountdata_lent_lending_branch);
+            string.append("\n");
+        }
+
+        if (data.getLent().size() == 0) {
+            string.append(getResources().getString(R.string.lent_none));
+        }
+
+        string.append(getResources().getString(R.string.reservations_head));
+        string.append("\n\n");
+        for (ReservedItem item : data.getReservations()) {
+            appendIfNotEmpty(string, item.getTitle(), R.string.accountdata_title);
+            appendIfNotEmpty(string, item.getAuthor(), R.string.accountdata_author);
+            appendIfNotEmpty(string, item.getFormat(), R.string.accountdata_format);
+            appendIfNotEmpty(string, item.getStatus(), R.string.accountdata_status);
+            if (item.getReadyDate() != null) {
+                appendIfNotEmpty(string, fmt2.print(item.getReadyDate()),
+                        R.string.accountdata_reserved_ready_date);
+            }
+            if (item.getExpirationDate() != null) {
+                appendIfNotEmpty(string, fmt2.print(item.getExpirationDate()),
+                        R.string.accountdata_reserved_expiration_date);
+            }
+            appendIfNotEmpty(string, item.getBranch(), R.string.accountdata_reserved_branch);
+            string.append("\n");
+        }
+
+        if (data.getReservations().size() == 0) {
+            string.append(getResources().getString(R.string.reservations_none));
+        }
+
+        Intent sendIntent = new Intent();
+        sendIntent.setAction(Intent.ACTION_SEND);
+        sendIntent.putExtra(Intent.EXTRA_TEXT, string.toString());
+        sendIntent.setType("text/plain");
+        startActivity(Intent.createChooser(sendIntent,
+                getResources().getText(R.string.share_dialog_select)));
+    }
+
+    private void appendIfNotEmpty(StringBuilder string, String text, int id) {
+        if (text != null && !text.equals("")) {
+            string.append(getResources().getString(id)).append(": ")
+                  .append(text).append("\n");
+        }
     }
 
     @Override
@@ -256,7 +453,7 @@ public class AccountFragment extends Fragment implements
     @Override
     public void accountSelected(Account account) {
 
-        svAccount.setVisibility(View.GONE);
+        swipeRefreshLayout.setVisibility(View.GONE);
         unsupportedErrorView.setVisibility(View.GONE);
         answerErrorView.setVisibility(View.GONE);
         errorView.removeAllViews();
@@ -272,66 +469,47 @@ public class AccountFragment extends Fragment implements
         } catch (NullPointerException e) {
             e.printStackTrace();
             return;
+        } catch (OpacClient.LibraryRemovedException e) {
+            show_connectivity_error(e);
+            return;
         }
-        if (api != null
-                && !app.getLibrary().isAccountSupported()
-                && (api.getSupportFlags() & OpacApi.SUPPORT_FLAG_ACCOUNT_EXTENDABLE) == 0) {
+        if (api != null && !app.getLibrary().isAccountSupported()) {
+
+            if (app.getLibrary().getReplacedBy() != null && !"".equals(app.getLibrary().getReplacedBy()) && app.promotePlusApps()) {
+                rlReplaced.setVisibility(View.VISIBLE);
+                tvErrBodyU.setVisibility(View.GONE);
+                ivReplacedStore.setOnClickListener(
+                        new OnClickListener() {
+                            @Override
+                            public void onClick(View v) {
+                                try {
+                                    Intent i = new Intent(Intent.ACTION_VIEW,
+                                            Uri.parse(app.getLibrary().getReplacedBy()
+                                                         .replace("https://play.google.com/store/apps/details?id=", "market://details?id=")));
+                                    startActivity(i);
+                                } catch (ActivityNotFoundException e) {
+                                    Intent i = new Intent(Intent.ACTION_VIEW,
+                                            Uri.parse(app.getLibrary().getReplacedBy()));
+                                    startActivity(i);
+                                }
+                            }
+                        });
+            } else {
+                rlReplaced.setVisibility(View.GONE);
+                tvErrBodyU.setVisibility(View.VISIBLE);
+            }
+
             supported = false;
             // Not supported with this api at all
             llLoading.setVisibility(View.GONE);
-            unsupportedErrorView.setVisibility(
-                    View.VISIBLE);
-            tvErrBodyU.setText(R.string.account_unsupported_api);
-            btSend.setText(R.string.write_mail);
-            btSend.setOnClickListener(new OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    Intent emailIntent = new Intent(
-                            android.content.Intent.ACTION_SEND);
-                    emailIntent.putExtra(
-                            android.content.Intent.EXTRA_EMAIL,
-                            new String[]{"info@opacapp.de"});
-                    emailIntent
-                            .putExtra(
-                                    android.content.Intent.EXTRA_SUBJECT,
-                                    "Bibliothek "
-                                            + app.getLibrary()
-                                                 .getIdent());
-                    emailIntent.putExtra(
-                            android.content.Intent.EXTRA_TEXT,
-                            getResources().getString(
-                                    R.string.interested_to_help));
-                    emailIntent.setType("text/plain");
-                    startActivity(Intent.createChooser(emailIntent,
-                            getString(R.string.write_mail)));
-                }
-            });
-
-        } else if (api != null && !app.getLibrary().isAccountSupported()) {
-            supported = false;
-
-            // We need help
-            llLoading.setVisibility(View.GONE);
-            unsupportedErrorView.setVisibility(
-                    View.VISIBLE);
-
-            tvErrBodyU.setText(R.string.account_unsupported);
-            btSend.setOnClickListener(new OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    dialog = AppCompatProgressDialog.show(getActivity(), "",
-                            getString(R.string.report_sending), true,
-                            true, new OnCancelListener() {
-                                @Override
-                                public void onCancel(
-                                        DialogInterface arg0) {
-                                }
-                            });
-                    dialog.show();
-                    new SendTask().execute();
-                }
-            });
-
+            unsupportedErrorView.setVisibility(View.VISIBLE);
+            if (HELP_WANTED_APIS.contains(api.getClass())) {
+                tvErrBodyU.setText(
+                        Html.fromHtml(getString(R.string.account_unsupported_api_opensource)));
+                tvErrBodyU.setMovementMethod(new LinkMovementMethod());
+            } else {
+                tvErrBodyU.setText(R.string.account_unsupported_api);
+            }
         } else if (account.getPassword() == null
                 || account.getPassword().equals("null")
                 || account.getPassword().equals("")
@@ -360,24 +538,21 @@ public class AccountFragment extends Fragment implements
             Context ctx = getActivity() != null ? getActivity() : OpacClient
                     .getEmergencyContext();
             AccountDataSource adatasource = new AccountDataSource(ctx);
-            adatasource.open();
             refreshtime = adatasource.getCachedAccountDataTime(account);
             if (refreshtime > 0) {
-                displaydata(adatasource.getCachedAccountData(account), true);
+                display(adatasource.getCachedAccountData(account), true);
                 if (System.currentTimeMillis() - refreshtime > MAX_CACHE_AGE) {
                     refresh();
                 }
             } else {
                 refresh();
             }
-            adatasource.close();
         }
     }
 
     public void refresh() {
 
-        if ((!app.getLibrary().isAccountSupported() && (app
-                .getApi().getSupportFlags() & OpacApi.SUPPORT_FLAG_ACCOUNT_EXTENDABLE) == 0)
+        if ((!app.getLibrary().isAccountSupported())
                 || account.getPassword() == null
                 || account.getPassword().equals("null")
                 || account.getPassword().equals("")
@@ -392,7 +567,7 @@ public class AccountFragment extends Fragment implements
         lt.execute();
     }
 
-    protected void cancel(final String a) {
+    public void cancel(final String a) {
         long age = System.currentTimeMillis() - refreshtime;
         if (refreshing || fromcache || age > MAX_CACHE_AGE) {
             Toast.makeText(getActivity(), R.string.account_no_concurrent,
@@ -489,7 +664,7 @@ public class AccountFragment extends Fragment implements
         alert.show();
     }
 
-    protected void prolong(final String a) {
+    public void prolong(final String a) {
         long age = System.currentTimeMillis() - refreshtime;
         if (refreshing || age > MAX_CACHE_AGE) {
             Toast.makeText(getActivity(), R.string.account_no_concurrent,
@@ -499,9 +674,54 @@ public class AccountFragment extends Fragment implements
             }
             return;
         }
+        final SharedPreferences sp = PreferenceManager.getDefaultSharedPreferences(getActivity());
+        OpacApi api;
+        try {
+            api = app.getApi();
+        } catch (OpacClient.LibraryRemovedException e) {
+            return;
+        }
+        if (sp.getBoolean("prolong_fee_warning_ignore", false) ||
+                app.getLibrary().isSuppressFeeWarnings() ||
+                (api.getSupportFlags() & OpacApi.SUPPORT_FLAG_WARN_PROLONG_FEES) > 0) {
+            prolongPerform(a);
+        } else {
+            AlertDialog.Builder builder = new AlertDialog.Builder(
+                    getActivity());
+            View content = getActivity().getLayoutInflater()
+                                        .inflate(R.layout.dialog_prolong_confirm, null);
+            final CheckBox check = (CheckBox) content.findViewById(R.id.check_box1);
+            builder.setView(content)
+                   .setCancelable(false)
+                   .setNegativeButton(R.string.cancel,
+                           new DialogInterface.OnClickListener() {
+                               @Override
+                               public void onClick(
+                                       DialogInterface dialog, int id) {
+                                   dialog.cancel();
+                               }
+                           })
+                   .setPositiveButton(R.string.reservation_fee_continue,
+                           new DialogInterface.OnClickListener() {
+                               @Override
+                               public void onClick(
+                                       DialogInterface dialog, int id) {
+                                   if (check.isChecked()) {
+                                       sp.edit().putBoolean("prolong_fee_warning_ignore", true)
+                                         .apply();
+                                   }
+                                   prolongPerform(a);
+                               }
+                           });
+            AlertDialog alert = builder.create();
+            alert.show();
+        }
+    }
 
-        MultiStepResultHelper<String> msrhProlong = new MultiStepResultHelper<>(
-                getActivity(), a, R.string.doing_prolong);
+    protected void prolongPerform(final String a) {
+        MultiStepResultHelper<String> msrhProlong =
+                new MultiStepResultHelper<>(
+                        getActivity(), a, R.string.doing_prolong);
         msrhProlong.setCallback(new Callback<String>() {
             @Override
             public void onSuccess(MultiStepResult result) {
@@ -519,7 +739,8 @@ public class AccountFragment extends Fragment implements
                                    new DialogInterface.OnClickListener() {
                                        @Override
                                        public void onClick(
-                                               DialogInterface dialog, int id) {
+                                               DialogInterface dialog,
+                                               int id) {
                                            dialog.cancel();
                                        }
                                    });
@@ -567,22 +788,158 @@ public class AccountFragment extends Fragment implements
             }
 
             @Override
-            public StepTask<?> newTask(MultiStepResultHelper helper, int useraction,
+            public StepTask<?> newTask(MultiStepResultHelper helper,
+                    int useraction,
                     String selection, String argument) {
-                return new ProlongTask(helper, useraction, selection, argument);
+                return new ProlongTask(helper, useraction, selection,
+                        argument);
             }
         });
         msrhProlong.start();
+
     }
 
-    protected void download(final String a) {
-        if (app.getApi() instanceof EbookServiceApi) {
-            dialog = AppCompatProgressDialog.show(getActivity(), "",
-                    getString(R.string.doing_download), true);
-            dialog.show();
-            dt = new DownloadTask(a);
-            dt.execute();
-        }
+    public void download(final String a) {
+        MultiStepResultHelper<String> msrhDownload = new MultiStepResultHelper<>(
+                getActivity(), a, R.string.doing_download);
+        msrhDownload.setCallback(new Callback<String>() {
+            @Override
+            public void onSuccess(MultiStepResult res) {
+                final EbookServiceApi.DownloadResult result = (EbookServiceApi.DownloadResult) res;
+                if (result.getUrl() != null) {
+                    if (result.getUrl().contains("acsm") || (a.contains("overdrive") && !result.getUrl().contains("epub-sample") && (result.getUrl().contains(".odm") || result.getUrl().contains(".epub")))) {
+                        String[] download_clients = new String[]{
+                                "com.android.aldiko", "com.aldiko.android",
+                                "com.bluefirereader",
+                                "com.mantano.reader.android.lite",
+                                "com.overdrive.mobile.android.mediaconsole",
+                                "com.datalogics.dlreader",
+                                "com.mantano.reader.android.normal",
+                                "com.mantano.reader.android", "com.neosoar"};
+                        if (a.contains("overdrive") && result.getUrl().contains(".odm")) {
+                            download_clients = new String[] {
+                                    "com.overdrive.mobile.android.mediaconsole",
+                            };
+                        }
+                        boolean found = false;
+                        PackageManager pm = getActivity().getPackageManager();
+                        for (String id : download_clients) {
+                            try {
+                                pm.getPackageInfo(id, 0);
+                                found = true;
+                            } catch (NameNotFoundException e) {
+                            }
+                        }
+                        final SharedPreferences sp = PreferenceManager
+                                .getDefaultSharedPreferences(getActivity());
+                        if (!found && !sp.contains("reader_needed_ignore")) {
+
+                            int msg = R.string.reader_needed;
+                            if (a.contains("overdrive")) {
+                                msg = R.string.reader_needed_overdrive;
+                            }
+
+                            AlertDialog.Builder builder = new AlertDialog.Builder(
+                                    getActivity());
+                            builder.setMessage(msg)
+                                   .setCancelable(true)
+                                   .setNegativeButton(R.string.cancel,
+                                           new DialogInterface.OnClickListener() {
+                                               @Override
+                                               public void onClick(
+                                                       DialogInterface dialog, int id) {
+                                                   dialog.cancel();
+                                               }
+                                           })
+                                   .setNeutralButton(R.string.reader_needed_ignore,
+                                           new DialogInterface.OnClickListener() {
+                                               @Override
+                                               public void onClick(
+                                                       DialogInterface dialog, int id) {
+                                                   Intent i = new Intent(
+                                                           Intent.ACTION_VIEW);
+                                                   i.setData(Uri.parse(result.getUrl()));
+                                                   sp.edit()
+                                                     .putBoolean("reader_needed_ignore", true)
+                                                     .apply();
+                                                   startActivity(i);
+                                               }
+                                           })
+                                   .setPositiveButton(R.string.download,
+                                           new DialogInterface.OnClickListener() {
+                                               @Override
+                                               public void onClick(
+                                                       DialogInterface dialog, int id) {
+                                                   dialog.cancel();
+                                                   String reader = "com.aldiko.android";
+                                                   if (a.toLowerCase().contains("overdrive")) {
+                                                       reader = "com.overdrive.mobile.android.mediaconsole";
+                                                   }
+                                                   Intent i = new Intent(
+                                                           Intent.ACTION_VIEW,
+                                                           Uri.parse(
+                                                                   "market://details?id=" + reader));
+                                                   startActivity(i);
+                                               }
+                                           });
+                            AlertDialog alert = builder.create();
+                            alert.show();
+                            return;
+                        }
+                    }
+                    Intent i = new Intent(Intent.ACTION_VIEW);
+                    i.setData(Uri.parse(result.getUrl()));
+                    startActivity(i);
+                }
+            }
+
+            @Override
+            public void onError(MultiStepResult result) {
+                AlertDialog.Builder builder = new AlertDialog.Builder(
+                        getActivity());
+                builder.setMessage(result.getMessage())
+                       .setCancelable(true)
+                       .setNegativeButton(
+                               R.string.close,
+                               new DialogInterface.OnClickListener() {
+                                   @Override
+                                   public void onClick(
+                                           DialogInterface d,
+                                           int id) {
+                                       d.cancel();
+                                   }
+                               })
+                       .setOnCancelListener(
+                               new DialogInterface.OnCancelListener() {
+                                   @Override
+                                   public void onCancel(
+                                           DialogInterface d) {
+                                       if (d != null) {
+                                           d.cancel();
+                                       }
+                                   }
+                               });
+                AlertDialog alert = builder.create();
+                alert.show();
+            }
+
+            @Override
+            public void onUnhandledResult(
+                    MultiStepResult result) {
+            }
+
+            @Override
+            public void onUserCancel() {
+            }
+
+            @Override
+            public StepTask<?> newTask(MultiStepResultHelper helper,
+                    int useraction, String selection, String argument) {
+                return dt = new DownloadTask(helper, useraction, selection,
+                        argument);
+            }
+        });
+        msrhDownload.start();
     }
 
     public void setRefreshing(boolean refreshing) {
@@ -592,10 +949,8 @@ public class AccountFragment extends Fragment implements
 
     public void invalidateData() {
         AccountDataSource adatasource = new AccountDataSource(getActivity());
-        adatasource.open();
         adatasource.invalidateCachedAccountData(account);
-        adatasource.close();
-        svAccount.setVisibility(View.GONE);
+        swipeRefreshLayout.setVisibility(View.GONE);
         accountSelected(account);
     }
 
@@ -608,9 +963,7 @@ public class AccountFragment extends Fragment implements
         }
         if (e instanceof OpacErrorException) {
             AccountDataSource adatasource = new AccountDataSource(getActivity());
-            adatasource.open();
             adatasource.invalidateCachedAccountData(account);
-            adatasource.close();
             dialog_wrong_credentials(e.getMessage());
             return;
         }
@@ -621,22 +974,25 @@ public class AccountFragment extends Fragment implements
             View connError = getActivity().getLayoutInflater().inflate(
                     R.layout.error_connectivity, errorView);
 
+            TextView tvErrBody = (TextView) connError.findViewById(R.id.tvErrBody);
+            Button btnRetry = (Button) connError.findViewById(R.id.btRetry);
+            btnRetry.setVisibility(View.VISIBLE);
             if (e != null && e instanceof SSLSecurityException) {
-                ((TextView) connError.findViewById(R.id.tvErrBody))
-                        .setText(R.string.connection_error_detail_security);
+                tvErrBody.setText(R.string.connection_error_detail_security);
             } else if (e != null && e instanceof NotReachableException) {
-                ((TextView) connError.findViewById(R.id.tvErrBody))
-                        .setText(R.string.connection_error_detail_nre);
+                tvErrBody.setText(R.string.connection_error_detail_nre);
+            } else if (e != null && e instanceof OpacClient.LibraryRemovedException) {
+                tvErrBody.setText(R.string.library_removed_error);
+                btnRetry.setVisibility(View.GONE);
             }
-            connError.findViewById(R.id.btRetry)
-                     .setOnClickListener(new OnClickListener() {
+            btnRetry.setOnClickListener(new OnClickListener() {
                          @Override
                          public void onClick(View v) {
                              refresh();
                          }
                      });
             llLoading.setVisibility(View.GONE);
-            svAccount.setVisibility(View.GONE);
+            swipeRefreshLayout.setVisibility(View.GONE);
             connError.setVisibility(View.VISIBLE);
         }
     }
@@ -647,10 +1003,8 @@ public class AccountFragment extends Fragment implements
         btPrefs.setOnClickListener(new OnClickListener() {
             @Override
             public void onClick(View v) {
-                Intent intent = new Intent(getActivity(),
-                        AccountEditActivity.class);
-                intent.putExtra(AccountEditActivity.EXTRA_ACCOUNT_ID,
-                        account.getId());
+                Intent intent = new Intent(getActivity(), AccountEditActivity.class);
+                intent.putExtra(AccountEditActivity.EXTRA_ACCOUNT_ID, account.getId());
                 startActivity(intent);
             }
         });
@@ -658,19 +1012,6 @@ public class AccountFragment extends Fragment implements
     }
 
     public void loaded(final AccountData result) {
-        AccountDataSource adatasource;
-        if (getActivity() == null && OpacClient.getEmergencyContext() != null) {
-            adatasource = new AccountDataSource(
-                    OpacClient.getEmergencyContext());
-        } else {
-            adatasource = new AccountDataSource(getActivity());
-        }
-
-        adatasource.open();
-        adatasource.storeCachedAccountData(
-                adatasource.getAccount(result.getAccount()), result);
-        adatasource.close();
-
         if (result.getAccount() == account.getId()) {
             // The account this data is for is still visible
 
@@ -678,88 +1019,17 @@ public class AccountFragment extends Fragment implements
 
             refreshtime = System.currentTimeMillis();
 
-            displaydata(result, false);
+            display(result, false);
         }
 
     }
 
-    private class LentViewHolder {
-        public TextView tvTitleAndAuthor;
-        public TextView tvStatus;
-        public TextView tvAuthorDetail;
-        public TextView tvBranchDetail;
-        public TextView tvFormatDetail;
-        public ImageView ivProlong;
-        public ImageView ivDownload;
-        public ImageView ivDetails;
-        public View vStatusColor;
-        public LinearLayout llData;
-        public LinearLayout llDetails;
-        public LinearLayout llButtons;
-        public boolean hasDetailLink;
-
-        public void findViews(View v) {
-            tvTitleAndAuthor = (TextView) v.findViewById(R.id.tvTitleAndAuthor);
-            tvStatus = (TextView) v.findViewById(R.id.tvStatus);
-            tvAuthorDetail = (TextView) v.findViewById(R.id.tvAuthorDetail);
-            tvBranchDetail = (TextView) v.findViewById(R.id.tvBranchDetail);
-            tvFormatDetail = (TextView) v.findViewById(R.id.tvFormatDetail);
-            ivProlong = (ImageView) v.findViewById(R.id.ivProlong);
-            ivDownload = (ImageView) v.findViewById(R.id.ivDownload);
-            ivDetails = (ImageView) v.findViewById(R.id.ivDetails);
-            vStatusColor = v.findViewById(R.id.vStatusColor);
-            llData = (LinearLayout) v.findViewById(R.id.llData);
-            llDetails = (LinearLayout) v.findViewById(R.id.llDetails);
-            llButtons = (LinearLayout) v.findViewById(R.id.llButtons);
-        }
-    }
-
-    private class ReservationViewHolder {
-        public TextView tvTitleAndAuthor;
-        public TextView tvStatus;
-        public TextView tvAuthorDetail;
-        public TextView tvBranchDetail;
-        public TextView tvFormatDetail;
-        public ImageView ivCancel;
-        public ImageView ivBooking;
-        public ImageView ivDetails;
-        public LinearLayout llData;
-        public LinearLayout llDetails;
-        public LinearLayout llButtons;
-        public boolean hasDetailLink;
-
-        public void findViews(View v) {
-            tvTitleAndAuthor = (TextView) v.findViewById(R.id.tvTitleAndAuthor);
-            tvStatus = (TextView) v.findViewById(R.id.tvStatus);
-            tvAuthorDetail = (TextView) v.findViewById(R.id.tvAuthorDetail);
-            tvBranchDetail = (TextView) v.findViewById(R.id.tvBranchDetail);
-            tvFormatDetail = (TextView) v.findViewById(R.id.tvFormatDetail);
-            ivCancel = (ImageView) v.findViewById(R.id.ivCancel);
-            ivBooking = (ImageView) v.findViewById(R.id.ivBooking);
-            ivDetails = (ImageView) v.findViewById(R.id.ivDetails);
-            llData = (LinearLayout) v.findViewById(R.id.llData);
-            llDetails = (LinearLayout) v.findViewById(R.id.llDetails);
-            llButtons = (LinearLayout) v.findViewById(R.id.llButtons);
-        }
-    }
-
-    @SuppressWarnings("deprecation")
-    public void displaydata(final AccountData result, boolean fromcache) {
-        if (getActivity() == null) {
+    protected void displayHeader() {
+        if (accountData == null || tvAccLabel == null || tvAccUser == null || tvAccCity == null ||
+                tvPendingFees == null || tvPendingFeesLabel == null || tvValidUntil == null ||
+                tvValidUntilLabel == null) {
             return;
         }
-        svAccount.setVisibility(View.VISIBLE);
-        llLoading.setVisibility(View.GONE);
-        unsupportedErrorView.setVisibility(View.GONE);
-        answerErrorView.setVisibility(View.GONE);
-        errorView.removeAllViews();
-
-        this.fromcache = fromcache;
-
-        SharedPreferences sp = PreferenceManager
-                .getDefaultSharedPreferences(app.getApplicationContext());
-        final long tolerance = Long.decode(sp.getString("notification_warning",
-                "367200000"));
 
         tvAccLabel.setText(account.getLabel());
         tvAccUser.setText(account.getName());
@@ -774,325 +1044,133 @@ public class AccountFragment extends Fragment implements
             ErrorReporter.handleException(e);
         }
 
-        /*
-            Lent items
-         */
+        if (accountData != null) {
+            if (accountData.getPendingFees() != null) {
+                tvPendingFeesLabel.setVisibility(View.VISIBLE);
+                tvPendingFees.setVisibility(View.VISIBLE);
+                tvPendingFees.setText(accountData.getPendingFees());
+            } else {
+                tvPendingFeesLabel.setVisibility(View.GONE);
+                tvPendingFees.setVisibility(View.GONE);
+            }
+            if (accountData.getValidUntil() != null) {
+                tvValidUntilLabel.setVisibility(View.VISIBLE);
+                tvValidUntil.setVisibility(View.VISIBLE);
+                tvValidUntil.setText(accountData.getValidUntil());
+            } else {
+                tvValidUntilLabel.setVisibility(View.GONE);
+                tvValidUntil.setVisibility(View.GONE);
+            }
+        }
+    }
 
-        llLent.removeAllViews();
+    protected void displayResHeader() {
+        if (accountData != null && tvResHeader != null) {
+            tvResHeader.setText(getActivity().getString(R.string.reservations_head) + " (" +
+                    accountData.getReservations().size() + ")");
+        }
+    }
 
-        final boolean notification_on = sp.getBoolean("notification_service", false);
-        boolean notification_problems = false;
+    protected void displayLentHeader() {
+        if (accountData != null && tvLentHeader != null) {
+            tvLentHeader.setText(getActivity().getString(R.string.lent_head) + " (" +
+                    accountData.getLent().size() + ")");
+        }
+    }
 
-        if (tvWarning != null) {
-            if (result.getWarning() != null && result.getWarning().length() > 1) {
+    private void displayWarning() {
+        if (accountData != null && tvWarning != null) {
+            if (accountData.getWarning() != null && accountData.getWarning().length() > 1) {
                 tvWarning.setVisibility(View.VISIBLE);
-                tvWarning.setText(result.getWarning());
+                tvWarning.setText(accountData.getWarning());
             } else {
                 tvWarning.setVisibility(View.GONE);
             }
         }
+    }
 
-        if (result.getLent().size() == 0) {
-            TextView t1 = new TextView(getActivity());
-            t1.setText(R.string.entl_none);
-            llLent.addView(t1);
-            tvLentHeader.setText(getActivity().getString(R.string.lent_head) + " (0)");
+    public void displayAge() {
+        try {
+            if (tvAge == null) {
+                return;
+            }
+
+            long age = System.currentTimeMillis() - refreshtime;
+            if (age < 60 * 1000) {
+                tvAge.setText(getResources().getString(R.string.account_up_to_date));
+            } else if (age < (3600 * 1000)) {
+                tvAge.setText(getResources()
+                        .getQuantityString(R.plurals.account_age_minutes, (int) (age / (60 * 1000)),
+                                (int) (age / (60 * 1000))));
+            } else if (age < 24 * 3600 * 1000) {
+                tvAge.setText(getResources()
+                        .getQuantityString(R.plurals.account_age_hours, (int) (age / (3600 * 1000)),
+                                (int) (age / (3600 * 1000))));
+
+            } else {
+                tvAge.setText(getResources().getQuantityString(R.plurals.account_age_days,
+                        (int) (age / (24 * 3600 * 1000)), (int) (age / (24 * 3600 * 1000))));
+            }
+        } catch (java.lang.IllegalStateException e) {
+            // as this is called from a handler it may be called
+            // without an activity attached to this fragment
+            // we do nothing about it
+        }
+    }
+
+    private void displayReservedItems() {
+        if (accountData != null && resAdapter != null) {
+            resAdapter.setItems(accountData.getReservations());
+        }
+    }
+
+    private void displayLentItems() {
+        if (accountData != null && lentAdapter != null) {
+            lentAdapter.setItems(accountData.getLent());
+        }
+    }
+
+    public void display(final AccountData result, boolean fromcache) {
+        accountData = result;
+        if (getActivity() == null) {
+            return;
+        }
+        swipeRefreshLayout.setVisibility(View.VISIBLE);
+        llLoading.setVisibility(View.GONE);
+        unsupportedErrorView.setVisibility(View.GONE);
+        answerErrorView.setVisibility(View.GONE);
+        errorView.removeAllViews();
+
+        this.fromcache = fromcache;
+
+        SharedPreferences sp = PreferenceManager
+                .getDefaultSharedPreferences(app.getApplicationContext());
+        displayHeader();
+
+        /*
+            Lent items
+         */
+        final boolean notification_on =
+                sp.getBoolean(SyncAccountJob.PREF_SYNC_SERVICE, false);
+        boolean notification_problems = false;
+
+        displayWarning();
+        displayLentHeader();
+        displayLentItems();
+        if (lentEmpty != null) {
+            // phone
+            lentEmpty.setVisible(result.getLent().size() == 0);
         } else {
-            tvLentHeader.setText(
-                    getActivity().getString(R.string.lent_head) + " (" + result.getLent().size() +
-                            ")");
-
-            lentManager = new ExpandingCardListManager(getActivity(), llLent) {
-                @Override
-                public View getView(final int position, ViewGroup container) {
-                    final View v = getLayoutInflater(null)
-                            .inflate(R.layout.listitem_account_lent, container, false);
-                    LentViewHolder holder = new LentViewHolder();
-                    holder.findViews(v);
-
-                    final Map<String, String> item = result.getLent().get(position);
-
-                    // Expanding and closing details
-                    v.setClickable(true);
-                    v.setFocusable(true);
-                    v.setOnClickListener(new View.OnClickListener() {
-                        @Override
-                        public void onClick(View v) {
-                            if (getExpandedPosition() != position) {
-                                expand(position);
-                            } else {
-                                collapse();
-                            }
-                        }
-                    });
-
-                    if (item.containsKey(AccountData.KEY_LENT_ID)) {
-                        // Connection to detail view
-                        holder.ivDetails.setOnClickListener(new OnClickListener() {
-                            @Override
-                            public void onClick(View clicked) {
-                                Intent intent =
-                                        new Intent(getActivity(), SearchResultDetailActivity.class);
-                                intent.putExtra(SearchResultDetailFragment.ARG_ITEM_ID,
-                                        item.get(AccountData.KEY_LENT_ID));
-                                ActivityOptionsCompat options = ActivityOptionsCompat
-                                        .makeScaleUpAnimation(v, v.getLeft(), v.getTop(),
-                                                v.getWidth(), v.getHeight());
-                                ActivityCompat
-                                        .startActivity(getActivity(), intent, options.toBundle());
-                            }
-                        });
-                        holder.hasDetailLink = true;
-                    }
-
-                    // Overview (Title/Author, Status/Deadline)
-                    CharSequence title = item.containsKey(AccountData.KEY_LENT_TITLE) ?
-                            Html.fromHtml(item.get(AccountData.KEY_LENT_TITLE)) : null;
-                    CharSequence author = item.containsKey(AccountData.KEY_LENT_AUTHOR) ?
-                            Html.fromHtml(item.get(AccountData.KEY_LENT_AUTHOR)) : null;
-                    if (title != null && author != null) {
-                        holder.tvTitleAndAuthor.setText(title + ", " + author);
-                    } else if (title != null) {
-                        holder.tvTitleAndAuthor.setText(title);
-                    } else if (author != null) {
-                        holder.tvTitleAndAuthor.setText(author);
-                    } else {
-                        holder.tvTitleAndAuthor.setVisibility(View.GONE);
-                    }
-
-                    if (item.containsKey(AccountData.KEY_LENT_DEADLINE) &&
-                            item.containsKey(AccountData.KEY_LENT_STATUS)) {
-                        holder.tvStatus.setText(Html.fromHtml(item.get(AccountData.KEY_LENT_DEADLINE)) + " (" +
-                                Html.fromHtml(item.get(AccountData.KEY_LENT_STATUS)) + ")");
-                    } else if (item.containsKey(AccountData.KEY_LENT_DEADLINE)) {
-                        holder.tvStatus.setText(Html.fromHtml(item.get(AccountData.KEY_LENT_DEADLINE)));
-                    } else if (item.containsKey(AccountData.KEY_LENT_STATUS)) {
-                        holder.tvStatus.setText(Html.fromHtml(item.get(AccountData.KEY_LENT_STATUS)));
-                    } else {
-                        holder.tvStatus.setVisibility(View.GONE);
-                    }
-
-                    // Detail
-                    if (author != null) {
-                        holder.tvAuthorDetail.setText(author);
-                    } else {
-                        holder.tvAuthorDetail.setVisibility(View.GONE);
-                    }
-                    if (item.containsKey(AccountData.KEY_LENT_FORMAT)) {
-                        holder.tvFormatDetail.setText(
-                                Html.fromHtml(item.get(AccountData.KEY_LENT_FORMAT)));
-                    } else {
-                        holder.tvFormatDetail.setVisibility(View.GONE);
-                    }
-                    if (item.containsKey(AccountData.KEY_LENT_LENDING_BRANCH)) {
-                        holder.tvBranchDetail
-                                .setText(Html.fromHtml(item.get(AccountData.KEY_LENT_LENDING_BRANCH)));
-                    } else if (item.containsKey(AccountData.KEY_LENT_BRANCH)) {
-                        holder.tvBranchDetail.setText(Html.fromHtml(item.get(AccountData.KEY_LENT_BRANCH)));
-                    } else {
-                        holder.tvBranchDetail.setVisibility(View.GONE);
-                    }
-
-                    // Color codes for return dates
-                    if (item.containsKey(AccountData.KEY_LENT_DEADLINE_TIMESTAMP)) {
-                        if (Long.parseLong(item
-                                .get(AccountData.KEY_LENT_DEADLINE_TIMESTAMP)) < System
-                                .currentTimeMillis()) {
-                            holder.vStatusColor
-                                    .setBackgroundColor(getResources().getColor(R.color.date_overdue));
-                        } else if ((Long.parseLong(item
-                                .get(AccountData.KEY_LENT_DEADLINE_TIMESTAMP)) - System
-                                .currentTimeMillis()) <= tolerance) {
-                            holder.vStatusColor
-                                    .setBackgroundColor(getResources().getColor(R.color.date_warning));
-                        } else if (item.containsKey(AccountData.KEY_LENT_DOWNLOAD)) {
-                            holder.vStatusColor.setBackgroundColor(
-                                    getResources().getColor(R.color.account_downloadable));
-                        }
-                    } else if (item.containsKey(AccountData.KEY_LENT_DOWNLOAD)) {
-                        holder.vStatusColor.setBackgroundColor(
-                                getResources().getColor(R.color.account_downloadable));
-                    }
-
-                    if (item.containsKey(AccountData.KEY_LENT_LINK)) {
-                        holder.ivProlong.setTag(item.get(AccountData.KEY_LENT_LINK));
-                        holder.ivProlong.setOnClickListener(new OnClickListener() {
-                            @Override
-                            public void onClick(View arg0) {
-                                prolong((String) arg0.getTag());
-                            }
-                        });
-                        holder.ivProlong.setVisibility(View.VISIBLE);
-                        if (item.containsKey(AccountData.KEY_LENT_RENEWABLE)) {
-                            holder.ivProlong.setAlpha(
-                                    item.get(AccountData.KEY_LENT_RENEWABLE).equals("Y") ? 255 : 100);
-                        }
-                    } else if (item.containsKey(AccountData.KEY_LENT_DOWNLOAD)
-                            && app.getApi() instanceof EbookServiceApi) {
-                        holder.ivDownload.setTag(item.get(AccountData.KEY_LENT_DOWNLOAD));
-                        holder.ivDownload.setOnClickListener(new OnClickListener() {
-                            @Override
-                            public void onClick(View arg0) {
-                                download((String) arg0.getTag());
-                            }
-                        });
-                        holder.ivProlong.setVisibility(View.GONE);
-                        holder.ivDownload.setVisibility(View.VISIBLE);
-                    } else {
-                        holder.ivProlong.setVisibility(View.INVISIBLE);
-                    }
-                    v.setTag(holder);
-                    return v;
-                }
-
-                @Override
-                public void expandView(int position, View view) {
-                    LentViewHolder holder = (LentViewHolder) view.getTag();
-                    Map<String, String> item = result.getLent().get(position);
-
-                    holder.llDetails.setVisibility(View.VISIBLE);
-                    if (item.containsKey(AccountData.KEY_LENT_TITLE)) {
-                        holder.tvTitleAndAuthor.setText(Html.fromHtml(item.get(AccountData.KEY_LENT_TITLE)));
-                    } else {
-                        holder.tvTitleAndAuthor.setVisibility(View.GONE);
-                    }
-                    if (holder.hasDetailLink) holder.ivDetails.setVisibility(View.VISIBLE);
-                }
-
-                @Override
-                public void collapseView(int position, View view) {
-                    LentViewHolder holder = (LentViewHolder) view.getTag();
-                    Map<String, String> item = result.getLent().get(position);
-
-                    CharSequence title = item.containsKey(AccountData.KEY_LENT_TITLE) ?
-                            Html.fromHtml(item.get(AccountData.KEY_LENT_TITLE)) : null;
-                    CharSequence author = item.containsKey(AccountData.KEY_LENT_AUTHOR) ?
-                            Html.fromHtml(item.get(AccountData.KEY_LENT_AUTHOR)) : null;
-
-                    holder.llDetails.setVisibility(View.GONE);
-                    if (title != null && author != null) {
-                        holder.tvTitleAndAuthor.setText(title + ", " + author);
-                    } else if (author != null) {
-                        holder.tvTitleAndAuthor.setText(author);
-                        holder.tvTitleAndAuthor.setVisibility(View.VISIBLE);
-                    }
-                    holder.ivDetails.setVisibility(View.GONE);
-                }
-
-                @Override
-                public int getCount() {
-                    return result.getLent().size();
-                }
-            };
-            lentManager.setAnimationInterceptor(
-                    new ExpandingCardListManager.AnimationInterceptor() {
-                        private float llDataY;
-                        private float llDataTranslationY = 0;
-
-                        @Override
-                        public void beforeExpand(View unexpandedView) {
-                            LentViewHolder holder = (LentViewHolder) unexpandedView.getTag();
-                            llDataY = ViewHelper.getY(holder.llData);
-                        }
-
-                        @Override
-                        public Collection<Animator> getExpandAnimations(int heightDifference,
-                                View expandedView) {
-                            LentViewHolder holder = (LentViewHolder) expandedView.getTag();
-                            Collection<Animator> anims = getAnimations(-heightDifference, 0);
-                            // Animate buttons to the side
-                            int difference = 2 * (getResources()
-                                    .getDimensionPixelSize(R.dimen.card_side_margin_selected) -
-                                    getResources().getDimensionPixelSize(
-                                            R.dimen.card_side_margin_default));
-                            anims.add(ObjectAnimator
-                                    .ofFloat(holder.llButtons, "translationX", difference, 0));
-                            // Animate llData to the bottom if required
-                            if (ViewHelper.getY(holder.llData) != llDataY) {
-                                ViewHelper.setY(holder.llData, llDataY);
-                                llDataTranslationY = ViewHelper.getTranslationY(holder.llData);
-                                anims.add(ObjectAnimator.ofFloat(holder.llData, "translationY", 0));
-                            } else {
-                                llDataTranslationY = 0;
-                            }
-                            return anims;
-                        }
-
-                        @Override
-                        public Collection<Animator> getCollapseAnimations(int heightDifference,
-                                View expandedView) {
-                            LentViewHolder holder = (LentViewHolder) expandedView.getTag();
-                            Collection<Animator> anims = getAnimations(0, heightDifference);
-                            // Animate buttons back
-                            int difference = 2 * (getResources()
-                                    .getDimensionPixelSize(R.dimen.card_side_margin_selected) -
-                                    getResources().getDimensionPixelSize(
-                                            R.dimen.card_side_margin_default));
-                            anims.add(ObjectAnimator
-                                    .ofFloat(holder.llButtons, "translationX", 0, difference));
-                            // Animate llData back
-                            anims.add(ObjectAnimator
-                                    .ofFloat(holder.llData, "translationY", llDataTranslationY));
-                            return anims;
-                        }
-
-                        @Override
-                        public void onCollapseAnimationEnd() {
-                            if (view.findViewById(R.id.rlMeta) != null) {
-                                // tablet
-                                ViewHelper.setTranslationY(view.findViewById(R.id.rlMeta), 0);
-                            } else {
-                                // phone
-                                ViewHelper.setTranslationY(tvResHeader, 0);
-                                ViewHelper.setTranslationY(llRes, 0);
-                                ViewHelper.setTranslationY(tvAge, 0);
-                                ViewHelper.setTranslationY(view.findViewById(R.id.tvNoWarranty), 0);
-                            }
-                        }
-
-                        private Collection<Animator> getAnimations(float from, float to) {
-                            List<Animator> animators = new ArrayList<>();
-                            if (view.findViewById(R.id.rlMeta) != null) {
-                                // tablet
-                                if (result.getLent().size() >= result.getReservations().size()) {
-                                    animators.add(ObjectAnimator
-                                            .ofFloat(view.findViewById(R.id.rlMeta), "translationY",
-                                                    from,
-                                                    to));
-                                }
-                            } else {
-                                // phone
-                                animators.add(ObjectAnimator
-                                        .ofFloat(tvResHeader, "translationY", from, to));
-                                animators.add(ObjectAnimator
-                                        .ofFloat(llRes, "translationY", from, to));
-                                animators.add(ObjectAnimator
-                                        .ofFloat(tvAge, "translationY", from, to));
-                                animators.add(ObjectAnimator
-                                        .ofFloat(view.findViewById(R.id.tvNoWarranty),
-                                                "translationY", from, to));
-                            }
-                            return animators;
-                        }
-                    });
-
-            for (final Map<String, String> item : result.getLent()) {
-                try {
-                    if (notification_on && item.containsKey(AccountData.KEY_LENT_DEADLINE)) {
-                        if (!item.get(AccountData.KEY_LENT_DEADLINE).equals("")) {
-                            if ((!item
-                                    .containsKey(AccountData.KEY_LENT_DEADLINE_TIMESTAMP) || Long
-                                    .parseLong(item
-                                            .get(AccountData.KEY_LENT_DEADLINE_TIMESTAMP)) < 1)
-                                    && !"Onleihe".equals(item
-                                    .get(AccountData.KEY_LENT_BRANCH))) {
-                                notification_problems = true;
-                            }
-                        }
-                    }
-                } catch (Exception e) {
+            // tablet
+            tvLentEmpty.setVisibility(result.getLent().size() == 0 ? View.VISIBLE : View.GONE);
+        }
+        for (final LentItem item : result.getLent()) {
+            try {
+                if (notification_on && item.getDeadline() == null && !item.isEbook()) {
                     notification_problems = true;
                 }
+            } catch (Exception e) {
+                notification_problems = true;
             }
         }
 
@@ -1106,317 +1184,44 @@ public class AccountFragment extends Fragment implements
         /*
             Reservations
          */
-        llRes.removeAllViews();
-        if (result.getReservations().size() == 0) {
-            TextView t1 = new TextView(getActivity());
-            t1.setText(R.string.reservations_none);
-            llRes.addView(t1);
-            tvResHeader.setText(getActivity()
-                    .getString(R.string.reservations_head) + " (0)");
+        displayResHeader();
+        displayReservedItems();
+        if (reservationsEmpty != null) {
+            // phone
+            reservationsEmpty.setVisible(result.getReservations().size() == 0);
         } else {
-            tvResHeader.setText(getActivity()
-                    .getString(R.string.reservations_head) + " (" +
-                    result.getReservations().size() + ")");
-            resManager = new ExpandingCardListManager(getActivity(), llRes) {
-                @Override
-                public View getView(final int position, ViewGroup container) {
-                    final View v = getLayoutInflater(null).inflate(
-                            R.layout.listitem_account_reservation, llRes, false);
-                    ReservationViewHolder holder = new ReservationViewHolder();
-                    holder.findViews(v);
-
-                    final Map<String, String> item = result.getReservations().get(position);
-
-                    // Expanding and closing details
-                    v.setClickable(true);
-                    v.setFocusable(true);
-                    v.setOnClickListener(new View.OnClickListener() {
-                        @Override
-                        public void onClick(View v) {
-                            if (getExpandedPosition() != position) {
-                                expand(position);
-                            } else {
-                                collapse();
-                            }
-                        }
-                    });
-
-                    if (item.containsKey(AccountData.KEY_RESERVATION_ID)) {
-                        // Connection to detail view
-                        holder.ivDetails.setOnClickListener(new OnClickListener() {
-                            @Override
-                            public void onClick(View clicked) {
-                                Intent intent =
-                                        new Intent(getActivity(), SearchResultDetailActivity.class);
-                                intent.putExtra(SearchResultDetailFragment.ARG_ITEM_ID,
-                                        item.get(AccountData.KEY_RESERVATION_ID));
-                                ActivityOptionsCompat options = ActivityOptionsCompat
-                                        .makeScaleUpAnimation(v, v.getLeft(), v.getTop(),
-                                                v.getWidth(), v.getHeight());
-                                ActivityCompat
-                                        .startActivity(getActivity(), intent, options.toBundle());
-                            }
-                        });
-                        holder.hasDetailLink = true;
-                    }
-
-                    // Overview (Title/Author, Ready/Expire)
-                    final CharSequence title = item.containsKey(AccountData.KEY_RESERVATION_TITLE) ?
-                            Html.fromHtml(item.get(AccountData.KEY_RESERVATION_TITLE)) : null;
-                    final CharSequence author = item.containsKey(AccountData.KEY_RESERVATION_AUTHOR) ?
-                            Html.fromHtml(item.get(AccountData.KEY_RESERVATION_AUTHOR)) : null;
-                    if (title != null && author != null) {
-                        holder.tvTitleAndAuthor.setText(title + ", " + author);
-                    } else if (title != null) {
-                        holder.tvTitleAndAuthor.setText(title);
-                    } else if (author != null) {
-                        holder.tvTitleAndAuthor.setText(author);
-                    } else {
-                        holder.tvTitleAndAuthor.setVisibility(View.GONE);
-                    }
-
-                    if (item.containsKey(AccountData.KEY_RESERVATION_READY)) {
-                        holder.tvStatus.setText(Html.fromHtml(item.get(AccountData.KEY_RESERVATION_READY)));
-                    } else if (item.containsKey(AccountData.KEY_RESERVATION_EXPIRE) &&
-                            item.get(AccountData.KEY_RESERVATION_EXPIRE).length() > 6) {
-                        holder.tvStatus.setText(
-                                Html.fromHtml(getString(R.string.reservation_expire_until) + " "
-                                        + item.get(AccountData.KEY_RESERVATION_EXPIRE)));
-                    } else {
-                        holder.tvStatus.setVisibility(View.GONE);
-                    }
-
-                    // Detail
-                    if (author != null) {
-                        holder.tvAuthorDetail.setText(author);
-                    } else {
-                        holder.tvAuthorDetail.setVisibility(View.GONE);
-                    }
-                    if (item.containsKey(AccountData.KEY_RESERVATION_FORMAT)) {
-                        holder.tvFormatDetail
-                                .setText(Html.fromHtml(item.get(AccountData.KEY_RESERVATION_FORMAT)));
-                    } else {
-                        holder.tvFormatDetail.setVisibility(View.GONE);
-                    }
-                    if (item.containsKey(AccountData.KEY_RESERVATION_BRANCH)) {
-                        holder.tvBranchDetail
-                                .setText(Html.fromHtml(item.get(AccountData.KEY_RESERVATION_BRANCH)));
-                    } else {
-                        holder.tvBranchDetail.setVisibility(View.GONE);
-                    }
-
-                    if (item.containsKey(AccountData.KEY_RESERVATION_BOOKING)) {
-                        holder.ivBooking.setTag(item.get(AccountData.KEY_RESERVATION_BOOKING));
-                        holder.ivBooking.setOnClickListener(new OnClickListener() {
-                            @Override
-                            public void onClick(View arg0) {
-                                bookingStart((String) arg0.getTag());
-                            }
-                        });
-                        holder.ivBooking.setVisibility(View.VISIBLE);
-                        holder.ivCancel.setVisibility(View.GONE);
-                    } else if (item.containsKey(AccountData.KEY_RESERVATION_CANCEL)) {
-                        holder.ivCancel.setTag(item.get(AccountData.KEY_RESERVATION_CANCEL));
-                        holder.ivCancel.setOnClickListener(new OnClickListener() {
-                            @Override
-                            public void onClick(View arg0) {
-                                cancel((String) arg0.getTag());
-                            }
-                        });
-                        holder.ivCancel.setVisibility(View.VISIBLE);
-                        holder.ivBooking.setVisibility(View.GONE);
-                    } else {
-                        holder.ivCancel.setVisibility(View.INVISIBLE);
-                        holder.ivBooking.setVisibility(View.GONE);
-                    }
-                    v.setTag(holder);
-                    return v;
-                }
-
-                @Override
-                public void expandView(int position, View view) {
-                    ReservationViewHolder holder = (ReservationViewHolder) view.getTag();
-                    Map<String, String> item = result.getReservations().get(position);
-
-                    holder.llDetails.setVisibility(View.VISIBLE);
-                    if (item.containsKey(AccountData.KEY_RESERVATION_TITLE)) {
-                        holder.tvTitleAndAuthor.setText(item.get(
-                                AccountData.KEY_RESERVATION_TITLE));
-                    } else {
-                        holder.tvTitleAndAuthor.setVisibility(View.GONE);
-                    }
-                    if (holder.hasDetailLink) holder.ivDetails.setVisibility(View.VISIBLE);
-                }
-
-                @Override
-                public void collapseView(int position, View view) {
-                    ReservationViewHolder holder = (ReservationViewHolder) view.getTag();
-                    Map<String, String> item = result.getReservations().get(position);
-
-                    holder.llDetails.setVisibility(View.GONE);
-                    if (item.containsKey(AccountData.KEY_RESERVATION_TITLE) && item.containsKey(AccountData.KEY_RESERVATION_AUTHOR)) {
-                        holder.tvTitleAndAuthor.setText(item.get(
-                                AccountData.KEY_RESERVATION_TITLE) + ", " + item.get(
-                                AccountData.KEY_RESERVATION_AUTHOR));
-                    } else if (item.containsKey(AccountData.KEY_RESERVATION_AUTHOR)) {
-                        holder.tvTitleAndAuthor.setText(item.get(AccountData.KEY_RESERVATION_AUTHOR));
-                        holder.tvTitleAndAuthor.setVisibility(View.VISIBLE);
-                    }
-                    holder.ivDetails.setVisibility(View.GONE);
-                }
-
-                @Override
-                public int getCount() {
-                    return result.getReservations().size();
-                }
-            };
-            resManager.setAnimationInterceptor(new ExpandingCardListManager.AnimationInterceptor() {
-                private float llDataY;
-                private float llDataTranslationY = 0;
-
-                @Override
-                public void beforeExpand(View unexpandedView) {
-                    ReservationViewHolder holder = (ReservationViewHolder) unexpandedView.getTag();
-                    llDataY = ViewHelper.getY(holder.llData);
-                }
-
-                @Override
-                public Collection<Animator> getExpandAnimations(int heightDifference,
-                        View expandedView) {
-                    ReservationViewHolder holder = (ReservationViewHolder) expandedView.getTag();
-                    Collection<Animator> anims = getAnimations(-heightDifference, 0);
-                    // Animate buttons to the side
-                    int difference = 2 * (getResources()
-                            .getDimensionPixelSize(R.dimen.card_side_margin_selected) -
-                            getResources().getDimensionPixelSize(
-                                    R.dimen.card_side_margin_default));
-                    anims.add(ObjectAnimator
-                            .ofFloat(holder.llButtons, "translationX", difference, 0));
-                    // Animate llData to the bottom if required
-                    if (ViewHelper.getY(holder.llData) != llDataY) {
-                        ViewHelper.setY(holder.llData, llDataY);
-                        llDataTranslationY = ViewHelper.getTranslationY(holder.llData);
-                        anims.add(ObjectAnimator.ofFloat(holder.llData, "translationY", 0));
-                    } else {
-                        llDataTranslationY = 0;
-                    }
-                    return anims;
-                }
-
-                @Override
-                public Collection<Animator> getCollapseAnimations(int heightDifference,
-                        View expandedView) {
-                    ReservationViewHolder holder = (ReservationViewHolder) expandedView.getTag();
-                    Collection<Animator> anims = getAnimations(0, heightDifference);
-                    // Animate buttons back
-                    int difference = 2 * (getResources()
-                            .getDimensionPixelSize(R.dimen.card_side_margin_selected) -
-                            getResources().getDimensionPixelSize(
-                                    R.dimen.card_side_margin_default));
-                    anims.add(ObjectAnimator
-                            .ofFloat(holder.llButtons, "translationX", 0, difference));
-                    // Animate llData back
-                    anims.add(ObjectAnimator.ofFloat(holder.llData, "translationY",
-                            llDataTranslationY));
-                    return anims;
-                }
-
-                @Override
-                public void onCollapseAnimationEnd() {
-                    if (view.findViewById(R.id.rlMeta) != null) {
-                        // tablet
-                        ViewHelper.setTranslationY(view.findViewById(R.id.rlMeta), 0);
-                    } else {
-                        // phone
-                        ViewHelper.setTranslationY(tvAge, 0);
-                        ViewHelper.setTranslationY(view.findViewById(R.id.tvNoWarranty), 0);
-                    }
-                }
-
-                private Collection<Animator> getAnimations(float from, float to) {
-                    List<Animator> animators = new ArrayList<>();
-                    if (view.findViewById(R.id.rlMeta) != null) {
-                        // tablet
-                        if (result.getReservations().size() >= result.getLent().size()) {
-                            animators.add(ObjectAnimator
-                                    .ofFloat(view.findViewById(R.id.rlMeta), "translationY", from,
-                                            to));
-                        }
-                    } else {
-                        // phone
-                        animators.add(ObjectAnimator.ofFloat(tvAge, "translationY", from, to));
-                        animators.add(ObjectAnimator
-                                .ofFloat(view.findViewById(R.id.tvNoWarranty), "translationY", from,
-                                        to));
-                    }
-                    return animators;
-                }
-            });
+            // tablet
+            tvReservationsEmpty
+                    .setVisibility(result.getReservations().size() == 0 ? View.VISIBLE : View.GONE);
         }
+        displayAge();
 
-        if (result.getPendingFees() != null) {
-            tvPendingFeesLabel.setVisibility(View.VISIBLE);
-            tvPendingFees.setVisibility(View.VISIBLE);
-            tvPendingFees.setText(result.getPendingFees());
-        } else {
-            tvPendingFeesLabel.setVisibility(View.GONE);
-            tvPendingFees.setVisibility(View.GONE);
+        boolean hideCovers = true;
+        for (LentItem item : result.getLent()) {
+            if (item.getMediaType() != null || item.getCover() != null) hideCovers = false;
         }
-        if (result.getValidUntil() != null) {
-            tvValidUntilLabel.setVisibility(
-                    View.VISIBLE);
-            tvValidUntil.setVisibility(View.VISIBLE);
-            tvValidUntil.setText(result.getValidUntil());
-        } else {
-            tvValidUntilLabel.setVisibility(View.GONE);
-            tvValidUntil.setVisibility(View.GONE);
+        for (ReservedItem item : result.getReservations()) {
+            if (item.getMediaType() != null || item.getCover() != null) hideCovers = false;
         }
-        refreshage();
-    }
-
-    public void refreshage() {
-        try {
-            if (tvAge == null) {
-                return;
-            }
-
-            long age = System.currentTimeMillis() - refreshtime;
-            if (age < 60 * 1000) {
-                tvAge.setText(getResources().getString(R.string.account_up_to_date));
-            } else if (age < (3600 * 1000)) {
-                tvAge.setText(getResources().getQuantityString(R.plurals.account_age_minutes,
-                        (int) (age / (60 * 1000)), (int) (age / (60 * 1000))));
-            } else if (age < 24 * 3600 * 1000) {
-                tvAge.setText(getResources().getQuantityString(R.plurals.account_age_hours,
-                        (int) (age / (3600 * 1000)), (int) (age / (3600 * 1000))));
-
-            } else {
-                tvAge.setText(getResources().getQuantityString(R.plurals.account_age_days,
-                        (int) (age / (24 * 3600 * 1000)), (int) (age / (24 * 3600 * 1000))));
-            }
-        } catch (java.lang.IllegalStateException e) {
-            // as this is called from a handler it may be called
-            // without an activity attached to this fragment
-            // we do nothing about it
-        }
+        lentAdapter.setCoversHidden(hideCovers);
+        resAdapter.setCoversHidden(hideCovers);
     }
 
     public void bookingStart(String booking_info) {
         long age = System.currentTimeMillis() - refreshtime;
         if (refreshing || fromcache || age > MAX_CACHE_AGE) {
-            Toast.makeText(getActivity(), R.string.account_no_concurrent,
-                    Toast.LENGTH_LONG).show();
+            Toast.makeText(getActivity(), R.string.account_no_concurrent, Toast.LENGTH_LONG).show();
             if (!refreshing) {
                 refresh();
             }
             return;
         }
-        DetailledItem item = new DetailledItem();
+        DetailedItem item = new DetailedItem();
         item.setBookable(true);
         item.setBooking_info(booking_info);
-        MultiStepResultHelper<DetailledItem> msrhBooking = new MultiStepResultHelper<>(
+        MultiStepResultHelper<DetailedItem> msrhBooking = new MultiStepResultHelper<>(
                 getActivity(), item, R.string.doing_booking);
-        msrhBooking.setCallback(new Callback<DetailledItem>() {
+        msrhBooking.setCallback(new Callback<DetailedItem>() {
             @Override
             public void onSuccess(MultiStepResult result) {
                 invalidateData();
@@ -1424,27 +1229,21 @@ public class AccountFragment extends Fragment implements
 
             @Override
             public void onError(MultiStepResult result) {
-                AlertDialog.Builder builder = new AlertDialog.Builder(
-                        getActivity());
-                builder.setMessage(result.getMessage())
-                       .setCancelable(true)
-                       .setNegativeButton(R.string.close,
-                               new DialogInterface.OnClickListener() {
-                                   @Override
-                                   public void onClick(DialogInterface d,
-                                           int id) {
-                                       d.cancel();
-                                   }
-                               })
-                       .setOnCancelListener(
-                               new DialogInterface.OnCancelListener() {
-                                   @Override
-                                   public void onCancel(DialogInterface d) {
-                                       if (d != null) {
-                                           d.cancel();
-                                       }
-                                   }
-                               });
+                AlertDialog.Builder builder = new AlertDialog.Builder(getActivity());
+                builder.setMessage(result.getMessage()).setCancelable(true)
+                       .setNegativeButton(R.string.close, new DialogInterface.OnClickListener() {
+                           @Override
+                           public void onClick(DialogInterface d, int id) {
+                               d.cancel();
+                           }
+                       }).setOnCancelListener(new DialogInterface.OnCancelListener() {
+                    @Override
+                    public void onCancel(DialogInterface d) {
+                        if (d != null) {
+                            d.cancel();
+                        }
+                    }
+                });
                 AlertDialog alert = builder.create();
                 alert.show();
             }
@@ -1459,7 +1258,7 @@ public class AccountFragment extends Fragment implements
 
             @Override
             public StepTask<?> newTask(MultiStepResultHelper helper, int useraction,
-                    String selection, DetailledItem argument) {
+                    String selection, DetailedItem argument) {
                 return new BookingTask(helper, useraction, selection, argument);
             }
         });
@@ -1477,22 +1276,18 @@ public class AccountFragment extends Fragment implements
         }
 
         AlertDialog.Builder builder = new AlertDialog.Builder(getActivity());
-        builder.setMessage(R.string.prolong_all_confirm)
-               .setCancelable(true)
-               .setNegativeButton(R.string.no,
-                       new DialogInterface.OnClickListener() {
-                           @Override
-                           public void onClick(DialogInterface d, int id) {
-                               d.cancel();
-                           }
-                       })
-               .setPositiveButton(R.string.yes,
-                       new DialogInterface.OnClickListener() {
-                           @Override
-                           public void onClick(DialogInterface d, int id) {
-                               prolongAllDo();
-                           }
-                       });
+        builder.setMessage(R.string.prolong_all_confirm).setCancelable(true)
+               .setNegativeButton(R.string.no, new DialogInterface.OnClickListener() {
+                   @Override
+                   public void onClick(DialogInterface d, int id) {
+                       d.cancel();
+                   }
+               }).setPositiveButton(R.string.yes, new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface d, int id) {
+                prolongAllDo();
+            }
+        });
         AlertDialog alert = builder.create();
         alert.show();
 
@@ -1500,8 +1295,8 @@ public class AccountFragment extends Fragment implements
 
     public void prolongAllDo() {
 
-        MultiStepResultHelper<Void> msrhProlong = new MultiStepResultHelper<>(
-                getActivity(), null, R.string.doing_prolong_all);
+        MultiStepResultHelper<Void> msrhProlong = new MultiStepResultHelper<>(getActivity(), null,
+                R.string.doing_prolong_all);
         msrhProlong.setCallback(new Callback<Void>() {
             @Override
             public void onSuccess(MultiStepResult result) {
@@ -1509,29 +1304,48 @@ public class AccountFragment extends Fragment implements
                     return;
                 }
                 ProlongAllResult res = (ProlongAllResult) result;
-                AlertDialog.Builder builder = new AlertDialog.Builder(
-                        getActivity());
+                AlertDialog.Builder builder = new AlertDialog.Builder(getActivity());
 
-                LayoutInflater inflater = getLayoutInflater(null);
+                if (res.getResults() != null) {
+                    LayoutInflater inflater = getActivity().getLayoutInflater();
+                    View view = inflater.inflate(R.layout.dialog_simple_list, null, false);
 
-                View view = inflater.inflate(R.layout.dialog_simple_list, null, false);
+                    ListView lv = (ListView) view.findViewById(R.id.lvBibs);
 
-                ListView lv = (ListView) view.findViewById(R.id.lvBibs);
-
-                lv.setAdapter(new ProlongAllResultAdapter(getActivity(), res
-                        .getResults()));
-                switch (result.getActionIdentifier()) {
-                    case ReservationResult.ACTION_BRANCH:
-                        builder.setTitle(R.string.branch);
+                    lv.setAdapter(new ProlongAllResultAdapter(getActivity(), res.getResults()));
+                    switch (result.getActionIdentifier()) {
+                        case ReservationResult.ACTION_BRANCH:
+                            builder.setTitle(R.string.branch);
+                    }
+                    builder.setView(view)
+                           .setNeutralButton(R.string.close, new DialogInterface.OnClickListener() {
+                               @Override
+                               public void onClick(DialogInterface dialog, int id) {
+                                   adialog.cancel();
+                                   invalidateData();
+                               }
+                           });
+                } else {
+                    builder.setMessage(result.getMessage())
+                           .setCancelable(true)
+                           .setNegativeButton(R.string.close,
+                                   new DialogInterface.OnClickListener() {
+                                       @Override
+                                       public void onClick(DialogInterface d,
+                                               int id) {
+                                           d.cancel();
+                                       }
+                                   })
+                           .setOnCancelListener(
+                                   new DialogInterface.OnCancelListener() {
+                                       @Override
+                                       public void onCancel(DialogInterface d) {
+                                           if (d != null) {
+                                               d.cancel();
+                                           }
+                                       }
+                                   });
                 }
-                builder.setView(view).setNeutralButton(R.string.close,
-                        new DialogInterface.OnClickListener() {
-                            @Override
-                            public void onClick(DialogInterface dialog, int id) {
-                                adialog.cancel();
-                                invalidateData();
-                            }
-                        });
                 adialog = builder.create();
                 adialog.show();
             }
@@ -1586,12 +1400,6 @@ public class AccountFragment extends Fragment implements
     @Override
     public void onStop() {
         super.onStop();
-        if (dialog != null) {
-            if (dialog.isShowing()) {
-                dialog.cancel();
-            }
-        }
-
         try {
             if (lt != null) {
                 if (!lt.isCancelled()) {
@@ -1613,94 +1421,64 @@ public class AccountFragment extends Fragment implements
         }
     }
 
-    public class SendTask extends AsyncTask<Void, Object, Integer> {
-
-        @Override
-        protected Integer doInBackground(Void... voids) {
-            HttpClient dc = HttpClientBuilder.create().build();
-            HttpPost httppost = new HttpPost(
-                    "http://opacapp.de/crashreport.php");
-            List<NameValuePair> nameValuePairs = new ArrayList<>(2);
-            nameValuePairs.add(new BasicNameValuePair("traceback", ""));
-            try {
-                nameValuePairs
-                        .add(new BasicNameValuePair("version",
-                                getActivity().getPackageManager()
-                                             .getPackageInfo(
-                                                     getActivity().getPackageName(),
-                                                     0).versionName));
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-
-            nameValuePairs.add(new BasicNameValuePair("android", android.os.Build.VERSION.RELEASE));
-            nameValuePairs
-                    .add(new BasicNameValuePair("sdk", "" + android.os.Build.VERSION.SDK_INT));
-            nameValuePairs.add(new BasicNameValuePair("device", android.os.Build.MANUFACTURER + " "
-                    + android.os.Build.MODEL));
-            nameValuePairs.add(new BasicNameValuePair("bib", app.getLibrary().getIdent()));
-
-            try {
-                nameValuePairs.add(new BasicNameValuePair("html", app.getApi()
-                                                                     .getAccountExtendableInfo(
-                                                                             app.getAccount())));
-            } catch (Exception e1) {
-                e1.printStackTrace();
-                return 1;
-            }
-
-            try {
-                httppost.setEntity(new UrlEncodedFormEntity(nameValuePairs));
-            } catch (UnsupportedEncodingException e) {
-                e.printStackTrace();
-            }
-            HttpResponse response;
-            try {
-                response = dc.execute(httppost);
-                response.getEntity().consumeContent();
-            } catch (Exception e) {
-                e.printStackTrace();
-                return 1;
-            }
-            return 0;
-        }
-
-        @Override
-        protected void onPostExecute(Integer result) {
-            if (getActivity() == null) {
-                return;
-            }
-
-            dialog.dismiss();
-            btSend.setEnabled(false);
-            if (result == 0) {
-                Toast toast = Toast.makeText(getActivity(),
-                        getString(R.string.report_sent), Toast.LENGTH_SHORT);
-                toast.show();
-            } else {
-                Toast toast = Toast.makeText(getActivity(),
-                        getString(R.string.report_error), Toast.LENGTH_SHORT);
-                toast.show();
-            }
-
-        }
-    }
-
     public class LoadTask extends AsyncTask<Void, Void, AccountData> {
 
         private Exception exception;
 
         @Override
         protected AccountData doInBackground(Void... voids) {
+            AccountData data;
             try {
-                return app.getApi().account(app.getAccount());
-            } catch (IOException | OpacErrorException e) {
+                data = app.getApi().account(account);
+
+                if (data == null) {
+                    return null;
+                }
+
+                Collections.sort(data.getLent(), (a, b) -> {
+                    if (a.isEbook() == b.isEbook()) {
+                        if (a.getDeadline() == null && b.getDeadline() == null) {
+                            return 0;
+                        } else if (a.getDeadline() == null) {
+                            return -1;
+                        } else if (b.getDeadline() == null) {
+                            return 1;
+                        } else {
+                            return a.getDeadline().compareTo(b.getDeadline());
+                        }
+                    } else if (a.isEbook()) {
+                        return 1;
+                    } else {
+                        // b.isEbook
+                        return -1;
+                    }
+                });
+            } catch (IOException | OpacErrorException | OpacClient.LibraryRemovedException e) {
                 exception = e;
+                return null;
             } catch (Exception e) {
                 ErrorReporter.handleException(e);
                 exception = e;
+                return null;
             }
-            return null;
+
+            try {
+                // save data
+                AccountDataSource adatasource;
+                if (getActivity() == null && OpacClient.getEmergencyContext() != null) {
+                    adatasource = new AccountDataSource(OpacClient.getEmergencyContext());
+                } else {
+                    adatasource = new AccountDataSource(getActivity());
+                }
+
+                account.setPasswordKnownValid(true);
+                adatasource.update(account);
+                adatasource.storeCachedAccountData(adatasource.getAccount(data.getAccount()), data);
+            } finally {
+                new ReminderHelper(app).generateAlarms();
+            }
+
+            return data;
         }
 
         @Override
@@ -1764,94 +1542,37 @@ public class AccountFragment extends Fragment implements
         }
     }
 
-    public class DownloadTask extends AsyncTask<Void, Void, String> {
-
+    public class DownloadTask extends StepTask<EbookServiceApi.DownloadResult> {
         private String itemId;
 
-        public DownloadTask(String itemId) {
+        public DownloadTask(MultiStepResultHelper helper, int useraction, String selection,
+                String itemId) {
+            super(helper, useraction, selection);
             this.itemId = itemId;
         }
 
         @Override
-        protected String doInBackground(Void... voids) {
-            return ((EbookServiceApi) app.getApi()).downloadItem(account, itemId);
+        protected EbookServiceApi.DownloadResult doInBackground(Void... voids) {
+            try {
+                return ((EbookServiceApi) app.getApi()).downloadItem(account, itemId, useraction, selection);
+            } catch (java.net.UnknownHostException | NoHttpResponseException
+                    | java.net.SocketException e) {
+                e.printStackTrace();
+            } catch (Exception e) {
+                ErrorReporter.handleException(e);
+            }
+            return null;
         }
 
         @Override
-        protected void onPostExecute(final String result) {
-            dialog.dismiss();
+        protected void onPostExecute(EbookServiceApi.DownloadResult result) {
             if (getActivity() == null) {
                 return;
             }
-            if (result.contains("acsm")) {
-                String[] download_clients = new String[]{
-                        "com.android.aldiko", "com.aldiko.android",
-                        "com.bluefirereader",
-                        "com.mantano.reader.android.lite",
-                        "com.datalogics.dlreader",
-                        "com.mantano.reader.android.normal",
-                        "com.mantano.reader.android", "com.neosoar"};
-                boolean found = false;
-                PackageManager pm = getActivity().getPackageManager();
-                for (String id : download_clients) {
-                    try {
-                        pm.getPackageInfo(id, 0);
-                        found = true;
-                    } catch (NameNotFoundException e) {
-                    }
-                }
-                final SharedPreferences sp = PreferenceManager
-                        .getDefaultSharedPreferences(getActivity());
-                if (!found && !sp.contains("reader_needed_ignore")) {
-                    AlertDialog.Builder builder = new AlertDialog.Builder(
-                            getActivity());
-                    builder.setMessage(R.string.reader_needed)
-                           .setCancelable(true)
-                           .setNegativeButton(R.string.cancel,
-                                   new DialogInterface.OnClickListener() {
-                                       @Override
-                                       public void onClick(
-                                               DialogInterface dialog, int id) {
-                                           dialog.cancel();
-                                       }
-                                   })
-                           .setNeutralButton(R.string.reader_needed_ignore,
-                                   new DialogInterface.OnClickListener() {
-                                       @Override
-                                       public void onClick(
-                                               DialogInterface dialog, int id) {
-                                           Intent i = new Intent(
-                                                   Intent.ACTION_VIEW);
-                                           i.setData(Uri.parse(result));
-                                           sp.edit()
-                                             .putBoolean(
-                                                     "reader_needed_ignore",
-                                                     true).commit();
-                                           startActivity(i);
-                                       }
-                                   })
-                           .setPositiveButton(R.string.download,
-                                   new DialogInterface.OnClickListener() {
-                                       @Override
-                                       public void onClick(
-                                               DialogInterface dialog, int id) {
-                                           dialog.cancel();
-                                           Intent i = new Intent(
-                                                   Intent.ACTION_VIEW,
-                                                   Uri.parse(
-                                                           "market://details?id=de" +
-                                                                   ".bluefirereader"));
-                                           startActivity(i);
-                                       }
-                                   });
-                    AlertDialog alert = builder.create();
-                    alert.show();
-                    return;
-                }
+            if (getActivity() == null || result == null) {
+                return;
             }
-            Intent i = new Intent(Intent.ACTION_VIEW);
-            i.setData(Uri.parse(result));
-            startActivity(i);
+            super.onPostExecute(result);
         }
     }
 
@@ -1891,6 +1612,8 @@ public class AccountFragment extends Fragment implements
                 return;
             }
 
+            super.onPostExecute(res);
+
             if (!success || res == null) {
                 AlertDialog.Builder builder = new AlertDialog.Builder(
                         getActivity());
@@ -1906,10 +1629,7 @@ public class AccountFragment extends Fragment implements
                                });
                 AlertDialog alert = builder.create();
                 alert.show();
-                return;
             }
-
-            super.onPostExecute(res);
         }
     }
 
@@ -2013,10 +1733,10 @@ public class AccountFragment extends Fragment implements
     }
 
     public class BookingTask extends StepTask<BookingResult> {
-        private DetailledItem item;
+        private DetailedItem item;
 
         public BookingTask(MultiStepResultHelper helper, int useraction, String selection,
-                DetailledItem item) {
+                DetailedItem item) {
             super(helper, useraction, selection);
             this.item = item;
         }
@@ -2059,6 +1779,50 @@ public class AccountFragment extends Fragment implements
             }
 
             super.onPostExecute(res);
+        }
+    }
+
+
+    @Override
+    public void onClick(LentItem item, LentAdapter.ViewHolder view) {
+        showDetailActivity(item, view);
+    }
+
+    @Override
+    public void onClick(ReservedItem item, ReservationsAdapter.ViewHolder view) {
+        showDetailActivity(item, view);
+    }
+
+    private void showDetailActivity(AccountItem item, AccountAdapter.ViewHolder view) {
+        Intent intent = new Intent(getContext(), AccountItemDetailActivity.class);
+        intent.putExtra(AccountItemDetailActivity.EXTRA_ITEM, item);
+        ActivityOptionsCompat options = ActivityOptionsCompat
+                .makeSceneTransitionAnimation(getActivity(), view.itemView,
+                        getString(R.string.transition_background));
+        ActivityCompat
+                .startActivityForResult(getActivity(), intent, REQUEST_DETAIL, options.toBundle());
+    }
+
+    @Override
+    public void onActivityResult(int requestCode, int resultCode, Intent intent) {
+        super.onActivityResult(requestCode, resultCode, intent);
+        if (requestCode == REQUEST_DETAIL && intent != null &&
+                intent.hasExtra(AccountItemDetailActivity.EXTRA_DATA)) {
+            String data = intent.getStringExtra(AccountItemDetailActivity.EXTRA_DATA);
+            switch (resultCode) {
+                case AccountItemDetailActivity.RESULT_PROLONG:
+                    prolong(data);
+                    break;
+                case AccountItemDetailActivity.RESULT_DOWNLOAD:
+                    download(data);
+                    break;
+                case AccountItemDetailActivity.RESULT_CANCEL:
+                    cancel(data);
+                    break;
+                case AccountItemDetailActivity.RESULT_BOOKING:
+                    bookingStart(data);
+                    break;
+            }
         }
     }
 }

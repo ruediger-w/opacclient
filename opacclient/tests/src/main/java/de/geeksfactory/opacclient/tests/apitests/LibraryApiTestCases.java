@@ -20,28 +20,15 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-import de.geeksfactory.opacclient.apis.Adis;
-import de.geeksfactory.opacclient.apis.BiBer1992;
-import de.geeksfactory.opacclient.apis.Bibliotheca;
-import de.geeksfactory.opacclient.apis.Heidi;
-import de.geeksfactory.opacclient.apis.IOpac;
+import de.geeksfactory.opacclient.OpacApiFactory;
 import de.geeksfactory.opacclient.apis.OpacApi;
 import de.geeksfactory.opacclient.apis.OpacApi.OpacErrorException;
-import de.geeksfactory.opacclient.apis.Pica;
-import de.geeksfactory.opacclient.apis.Primo;
-import de.geeksfactory.opacclient.apis.SISIS;
-import de.geeksfactory.opacclient.apis.SRU;
-import de.geeksfactory.opacclient.apis.TouchPoint;
-import de.geeksfactory.opacclient.apis.VuFind;
-import de.geeksfactory.opacclient.apis.WebOpacNet;
-import de.geeksfactory.opacclient.apis.WinBiap;
-import de.geeksfactory.opacclient.apis.Zones22;
 import de.geeksfactory.opacclient.objects.Account;
-import de.geeksfactory.opacclient.objects.DetailledItem;
+import de.geeksfactory.opacclient.objects.DetailedItem;
 import de.geeksfactory.opacclient.objects.Library;
 import de.geeksfactory.opacclient.objects.SearchRequestResult;
 import de.geeksfactory.opacclient.objects.SearchResult;
-import de.geeksfactory.opacclient.searchfields.JavaMeaningDetector;
+import de.geeksfactory.opacclient.searchfields.MeaningDetectorImpl;
 import de.geeksfactory.opacclient.searchfields.SearchField;
 import de.geeksfactory.opacclient.searchfields.SearchField.Meaning;
 import de.geeksfactory.opacclient.searchfields.SearchQuery;
@@ -53,10 +40,10 @@ import static org.junit.Assert.assertTrue;
 @RunWith(Parallelized.class)
 public class LibraryApiTestCases {
 
+    private static final String FOLDER = "opacapp/src/main";
     private Library library;
     private OpacApi api;
     private List<SearchField> fields;
-    private static final String FOLDER = "opacapp/src/main";
 
     public LibraryApiTestCases(String library) throws JSONException,
             IOException {
@@ -68,8 +55,12 @@ public class LibraryApiTestCases {
 
     @Parameters(name = "{0}")
     public static Collection<String[]> libraries() {
+        return getLibraries(FOLDER);
+    }
+
+    public static Collection<String[]> getLibraries(String folder) {
         List<String[]> libraries = new ArrayList<>();
-        for (String file : new File(FOLDER + "/assets/bibs/").list()) {
+        for (String file : new File(folder + "/assets/bibs/").list()) {
             if (file.equals("Test.json")) {
                 continue;
             }
@@ -78,13 +69,18 @@ public class LibraryApiTestCases {
         return libraries;
     }
 
+    public static String readFile(String path, Charset encoding) throws IOException {
+        byte[] encoded = Files.readAllBytes(Paths.get(path));
+        return encoding.decode(ByteBuffer.wrap(encoded)).toString();
+    }
+
     @Before
     public void setUp() throws IOException,
             OpacErrorException, JSONException {
         Security.addProvider(new BouncyCastleProvider());
-        api = getApi(library);
+        api = OpacApiFactory.create(library, "OpacApp/Test");
         fields = api.getSearchFields();
-        JavaMeaningDetector detector = new JavaMeaningDetector(library);
+        MeaningDetectorImpl detector = new MeaningDetectorImpl(library);
         for (int i = 0; i < fields.size(); i++) {
             fields.set(i, detector.detectMeaning(fields.get(i)));
         }
@@ -143,7 +139,7 @@ public class LibraryApiTestCases {
         } else {
             third = res.getResults().get(res.getResults().size() - 1);
         }
-        DetailledItem detail;
+        DetailedItem detail;
         if (third.getId() != null) {
             detail = api.getResultById(third.getId(), "");
         } else {
@@ -155,7 +151,7 @@ public class LibraryApiTestCases {
         if (res.getResults().size() < res.getTotal_result_count()) {
             api.searchGetPage(2);
             SearchResult second = res.getResults().get(1);
-            DetailledItem detail2;
+            DetailedItem detail2;
             if (second.getId() != null) {
                 detail2 = api.getResultById(second.getId(), "");
             } else {
@@ -167,7 +163,7 @@ public class LibraryApiTestCases {
 
     /**
      * Create an account with credentials that probably nobody has and try to login. This should
-     * normally give an OpacErrorException.
+     * normally give an {@link OpacErrorException}.
      */
     @Test
     public void testWrongLogin() throws IOException, JSONException {
@@ -190,7 +186,7 @@ public class LibraryApiTestCases {
         assertTrue(exception != null);
     }
 
-    private void confirmDetail(SearchResult result, DetailledItem detail) {
+    private void confirmDetail(SearchResult result, DetailedItem detail) {
         assertTrue(detail != null);
         assertTrue(detail.getDetails().size() > 0);
         if (detail.isReservable()) {
@@ -216,11 +212,6 @@ public class LibraryApiTestCases {
         }
     }
 
-    static String readFile(String path, Charset encoding) throws IOException {
-        byte[] encoded = Files.readAllBytes(Paths.get(path));
-        return encoding.decode(ByteBuffer.wrap(encoded)).toString();
-    }
-
     /**
      * @param fields List of SearchFields
      * @return The first free search field from the list. If there is none, the title search fields
@@ -240,48 +231,5 @@ public class LibraryApiTestCases {
             }
         }
         return null;
-    }
-
-    public static OpacApi getApi(Library library) {
-        OpacApi api;
-        if (library.getApi().equals("bond26")
-                || library.getApi().equals("bibliotheca"))
-        // Backwardscompatibility
-        {
-            api = new Bibliotheca();
-        } else if (library.getApi().equals("oclc2011")
-                || library.getApi().equals("sisis"))
-        // Backwards compatibility
-        {
-            api = new SISIS();
-        } else if (library.getApi().equals("zones22")) {
-            api = new Zones22();
-        } else if (library.getApi().equals("biber1992")) {
-            api = new BiBer1992();
-        } else if (library.getApi().equals("pica")) {
-            api = new Pica();
-        } else if (library.getApi().equals("iopac")) {
-            api = new IOpac();
-        } else if (library.getApi().equals("adis")) {
-            api = new Adis();
-        } else if (library.getApi().equals("sru")) {
-            api = new SRU();
-        } else if (library.getApi().equals("winbiap")) {
-            api = new WinBiap();
-        } else if (library.getApi().equals("webopac.net")) {
-            api = new WebOpacNet();
-        } else if (library.getApi().equals("touchpoint")) {
-            api = new TouchPoint();
-        } else if (library.getApi().equals("heidi")) {
-            api = new Heidi();
-        } else if (library.getApi().equals("vufind")) {
-            api = new VuFind();
-        } else if (library.getApi().equals("primo")) {
-            api = new Primo();
-        } else {
-            api = null;
-        }
-        if (api != null) api.init(library);
-        return api;
     }
 }

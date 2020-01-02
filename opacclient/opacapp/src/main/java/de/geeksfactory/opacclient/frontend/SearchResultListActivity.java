@@ -5,9 +5,6 @@ import android.content.Intent;
 import android.graphics.Bitmap;
 import android.os.AsyncTask;
 import android.os.Bundle;
-import android.support.v4.app.ActivityCompat;
-import android.support.v4.app.ActivityOptionsCompat;
-import android.support.v4.util.Pair;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
@@ -15,13 +12,18 @@ import android.view.View;
 
 import java.io.IOException;
 
-import de.geeksfactory.opacclient.NotReachableException;
+import androidx.core.app.ActivityCompat;
+import androidx.core.app.ActivityOptionsCompat;
+import androidx.core.util.Pair;
+import de.geeksfactory.opacclient.OpacClient;
 import de.geeksfactory.opacclient.R;
-import de.geeksfactory.opacclient.SSLSecurityException;
 import de.geeksfactory.opacclient.apis.OpacApi;
 import de.geeksfactory.opacclient.apis.OpacApi.OpacErrorException;
+import de.geeksfactory.opacclient.networking.NotReachableException;
+import de.geeksfactory.opacclient.networking.SSLSecurityException;
 import de.geeksfactory.opacclient.objects.SearchRequestResult;
 import de.geeksfactory.opacclient.objects.SearchResult;
+import de.geeksfactory.opacclient.utils.BitmapUtils;
 import de.geeksfactory.opacclient.utils.ErrorReporter;
 
 /**
@@ -122,16 +124,26 @@ public class SearchResultListActivity extends OpacActivity implements
      */
     @Override
     public void onItemSelected(SearchResult result, View coverView, int touchX, int touchY) {
-        if ((app.getApi().getSupportFlags() & OpacApi.SUPPORT_FLAG_ENDLESS_SCROLLING) == 0
-                && result.getPage() != listFragment.getLastLoadedPage()) {
-            new ReloadOldPageTask(result, coverView).execute();
+        if (result.getChildQuery() != null) {
+            app.startSearch(this, result.getChildQuery());
         } else {
-            showDetail(result, coverView, touchX, touchY);
+            OpacApi api;
+            try {
+                api = app.getApi();
+            } catch (OpacClient.LibraryRemovedException e) {
+                return;
+            }
+            if ((api.getSupportFlags() & OpacApi.SUPPORT_FLAG_ENDLESS_SCROLLING) == 0
+                    && result.getPage() != listFragment.getLastLoadedPage()) {
+                new ReloadOldPageTask(result, coverView).execute();
+            } else {
+                showDetail(result, coverView, touchX, touchY);
+            }
         }
     }
 
     public void showDetail(SearchResult res, View coverView, int touchX, int touchY) {
-        Bitmap cover = res.getCoverBitmap();
+        Bitmap cover = BitmapUtils.bitmapFromBytes(res.getCoverBitmap());
         Bitmap smallCover;
         if (cover != null && cover.getWidth() * cover.getHeight() > 300 * 300) {
             // Android's Parcelable implementation doesn't like huge images

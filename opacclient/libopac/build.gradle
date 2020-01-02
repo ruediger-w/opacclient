@@ -1,13 +1,85 @@
-apply plugin: 'java'
+plugins {
+    id 'org.jetbrains.kotlin.jvm' version '1.3.11'
+}
+apply plugin: 'java-library'
+apply plugin: 'jacoco'
+apply plugin: 'kotlin'
 
-sourceCompatibility = JavaVersion.VERSION_1_7
-targetCompatibility = JavaVersion.VERSION_1_7
+sourceCompatibility = JavaVersion.VERSION_1_8
+targetCompatibility = JavaVersion.VERSION_1_8
+
+[compileJava, compileTestJava]*.options*.encoding = 'UTF-8'
 
 dependencies {
-    compile fileTree(dir: 'libs', include: ['*.jar'])
     // Use older org.json version to have an environment equivalent to the android platform
-    compile 'org.json:json:20090211'
-    compile 'org.jsoup:jsoup:1.8.1'
-    compile 'org.apache.httpcomponents:httpmime:4.3.6'
-    compile project(':noandroid')
+    api 'org.json:json:20090211'
+    implementation 'org.jsoup:jsoup:1.8.3'
+    implementation 'org.apache.httpcomponents:httpmime:4.5.2'
+    api 'joda-time:joda-time:2.9.9'
+    api 'com.squareup.okhttp3:okhttp:3.12.1'
+    api "com.squareup.okhttp3:okhttp-urlconnection:3.10.0"
+    implementation 'net.sourceforge.streamsupport:streamsupport-cfuture:1.6.0'
+    testImplementation "junit:junit:4.12"
+    testImplementation 'org.hamcrest:hamcrest-library:1.3'
+    testImplementation 'org.mockito:mockito-core:1.10.19'
+    compile "org.jetbrains.kotlin:kotlin-stdlib:1.3.11"
+}
+task copyTestResources(type: Copy) {
+    from "${projectDir}/src/test/resources", "${projectDir}/src/main/resources"
+    into "${buildDir}/classes/test"
+}
+
+jacoco {
+    toolVersion = "0.7.4.201502262128"
+}
+
+jacocoTestReport {
+    reports {
+        xml.enabled = true
+        html.enabled = true
+    }
+}
+tasks.jacocoTestReport.dependsOn(test)
+
+processTestResources.dependsOn copyTestResources
+
+
+ext {
+    bintrayOrga = 'opacapp'
+    bintrayRepo = 'libs'
+    bintrayName = 'libopac'
+
+    publishedGroupId = 'net.opacapp'
+    libraryName = 'OPAC communication adapter'
+    artifact = 'libopac'
+
+    libraryDescription = "A library to access the data from various library OPACs"
+
+    siteUrl = 'https://github.com/opacapp/opacclient'
+    gitUrl = 'https://github.com/opacapp/opacclient.git'
+
+    libraryVersion = '6.2.2'
+
+    developerId = 'opacapp'
+    developerName = 'Web Opac App'
+    developerEmail = 'info@opacapp.net'
+
+    licenseName = 'The MIT License'
+    licenseUrl = 'https://opensource.org/licenses/MIT'
+    allLicenses = ["MIT"]
+}
+
+apply from: '../bintray.gradle'
+repositories {
+    mavenCentral()
+}
+compileKotlin {
+    kotlinOptions {
+        jvmTarget = "1.8"
+    }
+}
+compileTestKotlin {
+    kotlinOptions {
+        jvmTarget = "1.8"
+    }
 }

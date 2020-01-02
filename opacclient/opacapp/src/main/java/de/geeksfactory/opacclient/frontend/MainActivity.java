@@ -1,7 +1,9 @@
 package de.geeksfactory.opacclient.frontend;
 
 import android.annotation.SuppressLint;
+import android.annotation.TargetApi;
 import android.app.PendingIntent;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.IntentFilter.MalformedMimeTypeException;
@@ -9,25 +11,51 @@ import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
 import android.preference.PreferenceManager;
-import android.support.v4.app.Fragment;
-import android.support.v4.app.FragmentManager;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.widget.Toast;
+
+import org.json.JSONException;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Calendar;
+import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 
+import androidx.appcompat.app.AlertDialog;
+import androidx.core.content.ContextCompat;
+import androidx.fragment.app.DialogFragment;
+import androidx.fragment.app.Fragment;
+import androidx.fragment.app.FragmentManager;
 import de.geeksfactory.opacclient.R;
-import de.geeksfactory.opacclient.apis.OpacApi;
 import de.geeksfactory.opacclient.barcode.BarcodeScanIntegrator;
 import de.geeksfactory.opacclient.objects.Account;
+import de.geeksfactory.opacclient.objects.LentItem;
+import de.geeksfactory.opacclient.reminder.Alarm;
+import de.geeksfactory.opacclient.reminder.ReminderBroadcastReceiver;
+import de.geeksfactory.opacclient.searchfields.SearchField;
+import de.geeksfactory.opacclient.searchfields.SearchQuery;
 import de.geeksfactory.opacclient.storage.AccountDataSource;
+import de.geeksfactory.opacclient.storage.DataIntegrityException;
+import de.geeksfactory.opacclient.storage.JsonSearchFieldDataSource;
+import de.geeksfactory.opacclient.storage.PreferenceDataSource;
+import de.geeksfactory.opacclient.storage.SearchFieldDataSource;
+import de.geeksfactory.opacclient.webservice.LibraryConfigUpdateService;
 
-public class MainActivity extends OpacActivity implements
-        SearchFragment.Callback, StarredFragment.Callback,
+public class MainActivity extends OpacActivity
+        implements SearchFragment.Callback, StarredFragment.Callback,
         SearchResultDetailFragment.Callbacks {
 
+    public static final String EXTRA_FRAGMENT = "fragment";
+    public static final String ACTION_SEARCH = "de.geeksfactory.opacclient.SEARCH";
+    public static final String ACTION_ACCOUNT = "de.geeksfactory.opacclient.ACCOUNT";
     private String[][] techListsArray;
     private IntentFilter[] intentFiltersArray;
     private PendingIntent nfcIntent;
@@ -50,24 +78,19 @@ public class MainActivity extends OpacActivity implements
         byte[] id = tag.getId();
         android.nfc.tech.NfcV tech = android.nfc.tech.NfcV.get(tag);
         byte[] readCmd = new byte[3 + id.length];
-        readCmd[0] = 0x20; // set "address" flag (only send command to this
-        // tag)
+        readCmd[0] = 0x20; // set "address" flag (only send command to this tag)
         readCmd[1] = 0x20; // ISO 15693 Single Block Read command byte
         System.arraycopy(id, 0, readCmd, 2, id.length); // copy ID
         StringBuilder stringbuilder = new StringBuilder();
         try {
             tech.connect();
             for (int i = 0; i < 4; i++) {
-                readCmd[2 + id.length] = (byte) i; // 1 byte payload: block
-                // address
+                readCmd[2 + id.length] = (byte) i; // 1 byte payload: block address
                 byte[] data;
                 data = tech.transceive(readCmd);
                 for (byte aData1 : data) {
-                    if (aData1 > 32 && aData1 < 127) // We only want printable
-                    // characters, there
-                    // might be some
-                    // nullbytes in it
-                    // otherwise.
+                    if (aData1 > 32 && aData1 < 127) // We only want printable characters, there
+                    // might be some nullbytes in it otherwise.
                     {
                         stringbuilder.append((char) aData1);
                     }
@@ -88,76 +111,187 @@ public class MainActivity extends OpacActivity implements
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        sp = PreferenceManager.getDefaultSharedPreferences(this);
+
+        String itemToSelect = null;
+
         if (getIntent() != null && getIntent().getAction() != null) {
             if (getIntent().getAction().equals("android.intent.action.VIEW")) {
                 urlintent();
-                return;
+            } else if (getIntent().getAction().equals(ACTION_SEARCH)
+                    || getIntent().getAction().equals(ACTION_ACCOUNT)) {
+                String lib = getIntent().getStringExtra("library");
+                AccountDataSource adata = new AccountDataSource(this);
+                List<Account> accounts = adata.getAllAccounts(lib);
+
+                if (accounts.size() == 0) {
+                    // Check if library exists (an IOException should be thrown otherwise, correct?)
+                    try {
+                        app.getLibrary(lib);
+                    } catch (IOException | JSONException e) {
+                        return;
+                    }
+                    Account account = new Account();
+                    account.setLibrary(lib);
+                    account.setLabel(getString(R.string.default_account_name));
+                    account.setName("");
+                    account.setPassword("");
+                    long id = adata.addAccount(account);
+                    selectaccount(id);
+                } else if (accounts.size() == 1) {
+                    selectaccount(accounts.get(0).getId());
+                } else if (accounts.size() > 0) {
+                    if (getIntent().getAction().equals(ACTION_ACCOUNT)) {
+                        List<Account> accountsWithPassword = new ArrayList<>();
+                        for (Account account : accounts) {
+                            if (account.getName() != null && account.getPassword() != null
+                                    && !account.getName().isEmpty()
+                                    && !account.getPassword().isEmpty()) {
+                                accountsWithPassword.add(account);
+                            }
+                        }
+                        if (accountsWithPassword.size() == 1) {
+                            selectaccount(accountsWithPassword.get(0).getId());
+                        } else {
+                            showAccountSelectDialog(accounts);
+                        }
+                    } else {
+                        showAccountSelectDialog(accounts);
+                    }
+                }
+
+                if (getIntent().getAction().equals(ACTION_SEARCH)) {
+                    itemToSelect = "search";
+                } else {
+                    itemToSelect = "account";
+                }
             }
         }
 
-        sp = PreferenceManager.getDefaultSharedPreferences(this);
-
         if (savedInstanceState == null) {
-            if (getIntent().hasExtra("fragment")) {
-                selectItem(getIntent().getStringExtra("fragment"));
+            if (getIntent().hasExtra(EXTRA_FRAGMENT)) {
+                selectItem(getIntent().getStringExtra(EXTRA_FRAGMENT));
+            } else if (getIntent().hasExtra(ReminderBroadcastReceiver.EXTRA_ALARM_ID)) {
+                AccountDataSource adata = new AccountDataSource(this);
+                long alid = getIntent().getLongExtra(ReminderBroadcastReceiver.EXTRA_ALARM_ID, -1);
+                Alarm alarm = adata.getAlarm(alid);
+                if (alarm == null) {
+                    throw new DataIntegrityException("Unknown alarm ID " + alid + " received.");
+                }
+                List<LentItem> items = adata.getLentItems(alarm.media);
+                if (items.size() > 0) {
+                    long firstAccount = items.get(0).getAccount();
+                    boolean multipleAccounts = false;
+                    for (LentItem item : items) {
+                        if (item.getAccount() != firstAccount) {
+                            multipleAccounts = true;
+                            break;
+                        }
+                    }
+                    if (multipleAccounts) {
+                        new Handler().postDelayed(new Runnable() {
+                            @Override
+                            public void run() {
+                                drawerLayout.openDrawer(drawer);
+                            }
+                        }, 500);
+                    } else {
+                        selectaccount(firstAccount);
+                        selectItem("account");
+                    }
+                }
+            } else if (itemToSelect != null) {
+                selectItem(itemToSelect);
             } else if (sp.contains("startup_fragment")) {
                 selectItem(sp.getString("startup_fragment", "search"));
             } else {
-                selectItem(1);
+                selectItem(0);
             }
         }
         try {
             if (nfc_capable) {
-                if (!getPackageManager().hasSystemFeature(
-                        "android.hardware.nfc")) {
+                if (!getPackageManager().hasSystemFeature("android.hardware.nfc")) {
                     nfc_capable = false;
                 }
             }
             if (nfc_capable) {
                 mAdapter = android.nfc.NfcAdapter.getDefaultAdapter(this);
-                nfcIntent = PendingIntent.getActivity(this, 0, new Intent(this,
-                                getClass()).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
-                        0);
-                IntentFilter ndef = new IntentFilter(
-                        android.nfc.NfcAdapter.ACTION_TECH_DISCOVERED);
+                nfcIntent = PendingIntent.getActivity(this, 0,
+                        new Intent(this, getClass()).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP), 0);
+                IntentFilter ndef = new IntentFilter(android.nfc.NfcAdapter.ACTION_TECH_DISCOVERED);
                 try {
                     ndef.addDataType("*/*");
                 } catch (MalformedMimeTypeException e) {
                     throw new RuntimeException("fail", e);
                 }
                 intentFiltersArray = new IntentFilter[]{ndef,};
-                techListsArray = new String[][]{new String[]{android.nfc.tech.NfcV.class
-                        .getName()}};
+                techListsArray = new String[][]{
+                        new String[]{android.nfc.tech.NfcV.class.getName()}};
             }
         } catch (SecurityException e) {
             e.printStackTrace();
         }
 
         if (app.getLibrary() != null) {
-            getSupportActionBar()
-                    .setSubtitle(app.getLibrary().getDisplayName());
+            getSupportActionBar().setSubtitle(app.getLibrary().getDisplayName());
         }
+
+        showUpdateInfoDialog();
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            getWindow().setExitTransition(null);
+        }
+
+        PreferenceDataSource prefs = new PreferenceDataSource(this);
+        if (System.currentTimeMillis() - prefs.getLastLibraryConfigUpdateTry() > 24 * 3600 * 1000) {
+            // If the library config update did not run for more than 24h, let's trigger it now in
+            // the background, even if the result will only be active on the next app start / account
+            // switch.
+            Intent i = new Intent(this, LibraryConfigUpdateService.class);
+            startService(i);
+        }
+    }
+
+    private void showAccountSelectDialog(final List<Account> accounts) {
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.account_select)
+                .setAdapter(
+                        new AccountListAdapter(this, accounts)
+                                .setHighlightActiveAccount(false),
+                        new DialogInterface.OnClickListener() {
+
+                            @Override
+                            public void onClick(DialogInterface dialog,
+                                    int which) {
+                                selectaccount(accounts.get(which).getId());
+                            }
+                        }).create().show();
     }
 
     @Override
     public void accountSelected(Account account) {
+        super.accountSelected(account);
         this.account = account.getId();
         getSupportActionBar().setSubtitle(app.getLibrary().getDisplayName());
         if (fragment instanceof OpacActivity.AccountSelectedListener) {
-            ((OpacActivity.AccountSelectedListener) fragment)
-                    .accountSelected(account);
+            ((OpacActivity.AccountSelectedListener) fragment).accountSelected(account);
         }
 
-//		try {
-//			List<SearchField> fields = app.getApi()
-//					.getSearchFields(new SQLMetaDataSource(app), app.getLibrary());
-//			if (fields.contains(OpacApi.KEY_SEARCH_QUERY_BARCODE)) //TODO: This won't work with
-// the new implementation. But what is it for?
-//				nfc_capable = false;							   //  	   Shouldn't this be set
-// to true if the library supports searching for barcodes?
-//		} catch (OpacErrorException e) {
-//			e.printStackTrace();
-//		}
+        nfcHint();
+        supportPolicyHint();
+
+        //		try {
+        //			List<SearchField> fields = app.getApi()
+        //					.getSearchFields(new SQLMetaDataSource(app), app.getLibrary());
+        //			if (fields.contains(OpacApi.KEY_SEARCH_QUERY_BARCODE)) //TODO: This won't work
+        // with
+        // the new implementation. But what is it for?
+        //				nfc_capable = false;							   //  	   Shouldn't this
+        // be set
+        // to true if the library supports searching for barcodes?
+        //		} catch (OpacErrorException e) {
+        //			e.printStackTrace();
+        //		}
     }
 
     public void urlintent() {
@@ -172,24 +306,21 @@ public class MainActivity extends OpacActivity implements
                 throw new AssertionError("UTF-8 is unknown");
             }
 
-            if (!app.getLibrary().getIdent().equals(bib)) {
+            if (app.getLibrary() == null || !app.getLibrary().getIdent().equals(bib)) {
                 AccountDataSource adata = new AccountDataSource(this);
-                adata.open();
                 List<Account> accounts = adata.getAllAccounts(bib);
-                adata.close();
                 if (accounts.size() > 0) {
                     app.setAccount(accounts.get(0).getId());
                 } else {
                     Intent i = new Intent(Intent.ACTION_VIEW,
-                            Uri.parse("http://opacapp.de/web" + d.getPath()));
+                            Uri.parse("https://de.opacapp.net/" + d.getPath()));
                     startActivity(i);
                     return;
                 }
             }
             String medianr = split[2];
             if (medianr.length() > 1) {
-                Intent intent = new Intent(MainActivity.this,
-                        SearchResultDetailActivity.class);
+                Intent intent = new Intent(MainActivity.this, SearchResultDetailActivity.class);
                 intent.putExtra(SearchResultDetailFragment.ARG_ITEM_ID, medianr);
                 startActivity(intent);
             } else {
@@ -200,9 +331,8 @@ public class MainActivity extends OpacActivity implements
                     throw new AssertionError("UTF-8 is unknown");
                 }
                 Bundle query = new Bundle();
-                query.putString(OpacApi.KEY_SEARCH_QUERY_TITLE, title);
-                Intent intent = new Intent(MainActivity.this,
-                        SearchResultListActivity.class);
+                query.putString("title", title);  // TODO: This won't work with most modern APIs
+                Intent intent = new Intent(MainActivity.this, SearchResultListActivity.class);
                 intent.putExtra("query", query);
                 startActivity(intent);
             }
@@ -218,6 +348,7 @@ public class MainActivity extends OpacActivity implements
     @Override
     public void onActivityResult(int requestCode, int resultCode, Intent idata) {
         super.onActivityResult(requestCode, resultCode, idata);
+        fragment.onActivityResult(requestCode, resultCode, idata);
 
         //TODO: Rewrite this for the new SearchField implementation
         // Barcode
@@ -254,7 +385,7 @@ public class MainActivity extends OpacActivity implements
         if (nfc_capable && sp.getBoolean("nfc_search", false)) {
             try {
                 mAdapter.disableForegroundDispatch(this);
-            } catch (SecurityException e) {
+            } catch (IllegalStateException | SecurityException e) {
                 e.printStackTrace();
             }
         }
@@ -267,40 +398,111 @@ public class MainActivity extends OpacActivity implements
         if (app.getAccount().getId() != account) {
             accountSelected(app.getAccount());
         }
+
+        nfcHint();
+
         if (nfc_capable && sp.getBoolean("nfc_search", false)) {
             try {
-                mAdapter.enableForegroundDispatch(this, nfcIntent,
-                        intentFiltersArray, techListsArray);
+                mAdapter.enableForegroundDispatch(this, nfcIntent, intentFiltersArray,
+                        techListsArray);
             } catch (SecurityException e) {
                 e.printStackTrace();
             }
         }
     }
 
+    @TargetApi(10)
+    private void nfcHint() {
+        if (nfc_capable && !sp.getBoolean("nfc_search", false) && Build.VERSION.SDK_INT >= 10 &&
+                !sp.getBoolean("nfc_hint_shown", false) && app.getLibrary().isNfcSupported()) {
+            new AlertDialog.Builder(this)
+                    .setView(LayoutInflater.from(this).inflate(R.layout.dialog_nfc_hint, null))
+                    .setPositiveButton(R.string.yes, new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface dialog, int which) {
+                            sp.edit().putBoolean("nfc_search", true)
+                                    .putBoolean("nfc_hint_shown", true).apply();
+                            Toast.makeText(MainActivity.this, R.string.nfc_activated,
+                                    Toast.LENGTH_LONG).show();
+                            mAdapter.enableForegroundDispatch(MainActivity.this, nfcIntent,
+                                    intentFiltersArray, techListsArray);
+                        }
+                    }).setNegativeButton(R.string.no_thanks, new DialogInterface.OnClickListener() {
+                @Override
+                public void onClick(DialogInterface dialog, int which) {
+                    sp.edit().putBoolean("nfc_hint_shown", true).apply();
+                    Toast.makeText(MainActivity.this, R.string.nfc_not_activated, Toast.LENGTH_LONG)
+                            .show();
+                }
+            }).show();
+        }
+    }
+
+
+    private void supportPolicyHint() {
+        Account account = app.getAccount();
+        if (!app.getLibrary().isSupportContract() && !account.isSupportPolicyHintSeen()) {
+            findViewById(R.id.support_policy_hint).setVisibility(View.VISIBLE);
+            findViewById(R.id.btMoreInfo).setOnClickListener(v -> {
+                Intent websiteIntent = new Intent(Intent.ACTION_VIEW);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2) {
+                    // Chrome custom tabs
+                    Bundle extras = new Bundle();
+                    extras.putBinder("android.support.customtabs.extra.SESSION", null);
+                    extras.putInt("android.support.customtabs.extra.TOOLBAR_COLOR",
+                            ContextCompat.getColor(this, R.color.primary_red));
+                    websiteIntent.putExtras(extras);
+                }
+
+                String url = "https://opac.app/en/support-policy/";
+                String languageCode = Locale.getDefault().getLanguage().toLowerCase();
+                if (Arrays.asList("de", "en", "fr").contains(languageCode)) {
+                    url = String.format("https://opac.app/%s/support-policy/", languageCode);
+                }
+
+                websiteIntent.setData(Uri.parse(url));
+                startActivity(websiteIntent);
+
+            });
+            findViewById(R.id.btGotIt).setOnClickListener(v -> {
+                findViewById(R.id.support_policy_hint).setVisibility(View.GONE);
+                account.setSupportPolicyHintSeen(true);
+                new AccountDataSource(this).update(account);
+            });
+        } else {
+            findViewById(R.id.support_policy_hint).setVisibility(View.GONE);
+        }
+    }
+
     @SuppressLint("NewApi")
     @Override
     public void onNewIntent(Intent intent) {
-        // TODO: Rewrite this for the new SearchField implementation
-        /*if (nfc_capable && sp.getBoolean("nfc_search", false)) {
-            android.nfc.Tag tag = intent
-					.getParcelableExtra(android.nfc.NfcAdapter.EXTRA_TAG);
-			String scanResult = readPageToString(tag);
-			if (scanResult != null) {
-				if (scanResult.length() > 5) {
-					Set<String> fields = new HashSet<String>(Arrays.asList(app
-							.getApi().getSearchFields()));
-					if (fields.contains(OpacApi.KEY_SEARCH_QUERY_BARCODE)) {
-						Map<String, String> query = new HashMap<String, String>();
-						query.put(OpacApi.KEY_SEARCH_QUERY_BARCODE, scanResult);
-						app.startSearch(this, query);
-					} else {
-						Toast.makeText(this,
-								R.string.barcode_internal_not_supported,
-								Toast.LENGTH_LONG).show();
-					}
-				}
-			}
-		} */
+        if (nfc_capable && sp.getBoolean("nfc_search", false)) {
+            android.nfc.Tag tag = intent.getParcelableExtra(android.nfc.NfcAdapter.EXTRA_TAG);
+            String scanResult = readPageToString(tag);
+            if (scanResult != null) {
+                if (scanResult.length() > 5) {
+                    SearchFieldDataSource source = new JsonSearchFieldDataSource(this);
+                    if (source.hasSearchFields(app.getLibrary().getIdent())) {
+                        List<SearchField> fields = source
+                                .getSearchFields(app.getLibrary().getIdent());
+                        for (SearchField field : fields) {
+                            if (field.getMeaning() == SearchField.Meaning.BARCODE) {
+                                List<SearchQuery> queries = new ArrayList<>();
+                                queries.add(new SearchQuery(field, scanResult));
+                                app.startSearch(this, queries);
+                                return;
+                            }
+                        }
+                    }
+                    Intent detailIntent = new Intent(this, SearchResultDetailActivity.class);
+                    detailIntent.putExtra(SearchResultDetailFragment.ARG_ITEM_ID, scanResult);
+                    startActivity(detailIntent);
+                }
+            }
+        } else {
+            super.onNewIntent(intent);
+        }
     }
 
     @Override
@@ -313,8 +515,8 @@ public class MainActivity extends OpacActivity implements
 
             // Insert the fragment
             FragmentManager fragmentManager = getSupportFragmentManager();
-            fragmentManager.beginTransaction()
-                           .replace(R.id.content_frame_right, rightFragment).commit();
+            fragmentManager.beginTransaction().replace(R.id.content_frame_right, rightFragment)
+                    .commit();
         } else {
             Intent intent = new Intent(this, SearchResultDetailActivity.class);
             intent.putExtra(SearchResultDetailFragment.ARG_ITEM_ID, mNr);
@@ -325,8 +527,7 @@ public class MainActivity extends OpacActivity implements
     @Override
     public void removeFragment() {
         if (rightFragment != null) {
-            getSupportFragmentManager().beginTransaction().remove(rightFragment)
-                                       .commit();
+            getSupportFragmentManager().beginTransaction().remove(rightFragment).commit();
         }
     }
 
@@ -339,6 +540,24 @@ public class MainActivity extends OpacActivity implements
             } catch (Exception e) {
 
             }
+        }
+    }
+
+    public void showUpdateInfoDialog() {
+        if (!getApplicationContext().getPackageName().startsWith("de.geeksfactory.opacclient")) {
+            return;  // Never show e.g. in plus edition
+        }
+
+        SharedPreferences sp = PreferenceManager.getDefaultSharedPreferences(this);
+        Calendar cal = Calendar.getInstance();
+        cal.set(2017, 7, 1, 0, 0, 0);
+        if ((new Date()).after(cal.getTime())) {
+            return;
+        }
+        if (!sp.contains("seen_update_dialog_5.1.1")) {
+            DialogFragment newFragment = new UpdateInfoDialogFragment();
+            newFragment.show(getSupportFragmentManager(), "updateinfo");
+            sp.edit().putBoolean("seen_update_dialog_5.1.1", true).apply();
         }
     }
 

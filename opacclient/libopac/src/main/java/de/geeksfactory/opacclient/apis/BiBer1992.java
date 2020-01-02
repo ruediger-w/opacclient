@@ -1,31 +1,26 @@
-/**
- * Copyright (C) 2013 by Rüdiger Wurth under the MIT license:
+/*
+ * Copyright (C) 2015 by Rüdiger Wurth, Raphael Michel and contributors under the MIT license:
  *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), 
- * to deal in the Software without restriction, including without limitation 
- * the rights to use, copy, modify, merge, publish, distribute, sublicense, 
- * and/or sell copies of the Software, and to permit persons to whom the Software 
- * is furnished to do so, subject to the following conditions:
+ * Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
+ * associated documentation files (the "Software"), to deal in the Software without restriction,
+ * including without limitation the rights to use, copy, modify, merge, publish, distribute,
+ * sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
  *
- * The above copyright notice and this permission notice shall be included in 
- * all copies or substantial portions of the Software.
+ * The above copyright notice and this permission notice shall be included in all copies or
+ * substantial portions of the Software.
  *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR 
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. 
- * IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, 
- * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, 
- * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER 
- * DEALINGS IN THE SOFTWARE.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT
+ * NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+ * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 package de.geeksfactory.opacclient.apis;
 
-import org.apache.http.HttpResponse;
-import org.apache.http.NameValuePair;
-import org.apache.http.client.entity.UrlEncodedFormEntity;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.message.BasicNameValuePair;
+import org.joda.time.DateTime;
+import org.joda.time.format.DateTimeFormat;
+import org.joda.time.format.DateTimeFormatter;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -35,11 +30,9 @@ import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 
 import java.io.IOException;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -47,73 +40,68 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import de.geeksfactory.opacclient.NotReachableException;
 import de.geeksfactory.opacclient.i18n.StringProvider;
-import de.geeksfactory.opacclient.networking.HTTPClient;
-import de.geeksfactory.opacclient.networking.HttpUtils;
+import de.geeksfactory.opacclient.networking.HttpClientFactory;
+import de.geeksfactory.opacclient.networking.NotReachableException;
 import de.geeksfactory.opacclient.objects.Account;
 import de.geeksfactory.opacclient.objects.AccountData;
+import de.geeksfactory.opacclient.objects.Copy;
 import de.geeksfactory.opacclient.objects.Detail;
-import de.geeksfactory.opacclient.objects.DetailledItem;
+import de.geeksfactory.opacclient.objects.DetailedItem;
 import de.geeksfactory.opacclient.objects.Filter;
 import de.geeksfactory.opacclient.objects.Filter.Option;
+import de.geeksfactory.opacclient.objects.LentItem;
 import de.geeksfactory.opacclient.objects.Library;
+import de.geeksfactory.opacclient.objects.ReservedItem;
 import de.geeksfactory.opacclient.objects.SearchRequestResult;
 import de.geeksfactory.opacclient.objects.SearchResult;
 import de.geeksfactory.opacclient.objects.SearchResult.MediaType;
 import de.geeksfactory.opacclient.objects.SearchResult.Status;
+import de.geeksfactory.opacclient.reporting.Report;
+import de.geeksfactory.opacclient.reporting.ReportHandler;
 import de.geeksfactory.opacclient.searchfields.BarcodeSearchField;
 import de.geeksfactory.opacclient.searchfields.DropdownSearchField;
 import de.geeksfactory.opacclient.searchfields.SearchField;
 import de.geeksfactory.opacclient.searchfields.SearchQuery;
 import de.geeksfactory.opacclient.searchfields.TextSearchField;
+import okhttp3.FormBody;
 
 /**
- * @author Ruediger Wurth, 16.02.2013 Web identification: "copyright 1992-2011 by BiBer GmbH"
- *         <p/>
- *         BiBer gestartet mit Stadtbibliothek Offenburg start URL: http://217.86.216
- *         .47/opac/de/qsim_frm.html.S
- *         <p/>
- *         open: issue #23: Basic support for library system "Biber" -> Essen issue #32: Integration
- *         of "BiBer" (copyright 2006) -> Karlsruhe https://opac.karlsruhe.de/ issue #33:
- *         Integration of "BiBer" (copyright 1992) -> Essen
- *         <p/>
- *         Features: In getResult(), mixed table layout is supported: column-wise and row-wise In
- *         getResult(), amazon bitmaps are supported
- *         <p/>
- *         Katalogsuche tested with
- *         <p/>
- *         Name Media amazon copy Media Branch Account type Bitmaps table types support images avail
- *         search --------------------------------------------------------------------
- *         BaWu/Friedrichshafen ok yes yes yes yes - BaWu/Lahr ok yes yes yes no - BaWu/Offenburg ok
- *         n/a no yes n/a yes Bay/Aschaffenburg ok n/a no yes n/a - Bay/Wuerzburg ok yes yes yes yes
- *         - NRW/Duisburg ok yes yes yes n/a - NRW/Erkrath n/a yes no yes not sup.yes NRW/Essen n/a
- *         n/a no yes not sup.- NRW/Gelsenkirchen ok yes yes yes yes - NRW/Hagen ok yes yes yes yes
- *         yes NRW/Herford n/a yes yes yes n/a - NRW/Luenen ok yes no yes n/a - NRW/MuelheimRuhr ok
- *         yes yes yes yes yes
+ * @author Ruediger Wurth
  */
-public class BiBer1992 extends BaseApi {
+public class BiBer1992 extends OkHttpBaseApi {
 
     protected static HashMap<String, MediaType> defaulttypes = new HashMap<>();
-    // we have to limit num of results because PUSH attribute SHOW=20 does not
-    // work:
-    // number of results is always 50 which is too much
-    final private int numOfResultsPerPage = 20;
-    protected boolean newStyleReservations = false;
 
     static {
     }
 
-    private String m_opac_url = "";
-    private String m_opac_dir = "opac"; // sometimes also "opax"
-    private String m_opac_suffix = ".C"; // sometimes also ".S"
-    private JSONObject m_data;
+    // we have to limit num of results because PUSH attribute SHOW=20 does not work:
+    // number of results is always 50 which is too much
+    final private int numOfResultsPerPage = 20;
+    protected boolean newStyleReservations = false;
+    protected boolean reservationsId1First = false;
+    private String opacUrl = "";
+    private String opacDir = "opac"; // sometimes also "opax"
+    private String opacSuffix = ".C"; // sometimes also ".S"
+    private JSONObject data;
 
     // private int m_resultcount = 10;
     // private long logged_in;
     // private Account logged_in_as;
-    private List<NameValuePair> m_nameValuePairs = new ArrayList<>(
-            2);
+    List<String[]> formData = new ArrayList<>();
+
+    private void addFormData(String k, String v) {
+        formData.add(new String[] {k, v});
+    }
+
+    private FormBody buildFormData() {
+        FormBody.Builder fb = new FormBody.Builder(Charset.forName(getDefaultEncoding()));
+        for (String[] li : formData) {
+            fb.add(li[0], li[1]);
+        }
+        return fb.build();
+    }
 
     /*
      * ----- media types ----- Example Wuerzburg: <td ...><input type="checkbox"
@@ -142,26 +130,15 @@ public class BiBer1992 extends BaseApi {
      * <option selected value="ZWST0">Alle Bibliotheksorte</option> </select>
      */
     @Override
-    public List<SearchField> getSearchFields() throws IOException {
+    public List<SearchField> parseSearchFields() throws IOException {
         List<SearchField> fields = new ArrayList<>();
 
-        HttpGet httpget;
-        if (m_opac_dir.equals("opax") || m_opac_dir.equals("opax13")) {
-            httpget = new HttpGet(m_opac_url + "/" + m_opac_dir
-                    + "/de/qsel.html.S");
+        String html;
+        if (opacDir.contains("opax")) {
+            html = httpGet(opacUrl + "/" + opacDir + "/de/qsel.html.S", getDefaultEncoding());
         } else {
-            httpget = new HttpGet(m_opac_url + "/" + m_opac_dir
-                    + "/de/qsel_main.S");
+            html= httpGet(opacUrl + "/" + opacDir + "/de/qsel_main.S", getDefaultEncoding());
         }
-
-        HttpResponse response = http_client.execute(httpget);
-
-        if (response.getStatusLine().getStatusCode() == 500) {
-            throw new NotReachableException();
-        }
-        String html = convertStreamToString(response.getEntity().getContent());
-        HttpUtils.consume(response.getEntity());
-
         Document doc = Jsoup.parse(html);
 
         // get text fields
@@ -180,7 +157,6 @@ public class BiBer1992 extends BaseApi {
             DropdownSearchField mtDropdown = new DropdownSearchField();
             mtDropdown.setId(mt_opts.get(0).attr("name"));
             mtDropdown.setDisplayName("Medientyp");
-            List<Map<String, String>> mtOptions = new ArrayList<>();
             for (Element opt : mt_opts) {
                 if (!opt.val().equals("")) {
                     String text = opt.text();
@@ -214,7 +190,8 @@ public class BiBer1992 extends BaseApi {
                         // text is still empty, check images in label layout, Example
                         // Wiedenst
                         // <input type="radio" name="MT" id="MTYP1" value="MTYP1">
-                        // <label for="MTYP1"><img src="http://www.wiedenest.de/bib/image/books.png" alt="Bücher" title="Bücher"></label>
+                        // <label for="MTYP1"><img src="http://www.wiedenest.de/bib/image/books
+                        // .png" alt="Bücher" title="Bücher"></label>
                         Element label = opt.nextElementSibling();
                         if (label != null) {
                             Elements td2Children = label.select("img[title]");
@@ -227,13 +204,9 @@ public class BiBer1992 extends BaseApi {
                         // text is still empty: missing end tag like Offenburg
                         text = parse_option_regex(opt);
                     }
-                    Map<String, String> value = new HashMap<>();
-                    value.put("key", opt.val());
-                    value.put("value", text);
-                    mtOptions.add(value);
+                    mtDropdown.addDropdownValue(opt.val(), text);
                 }
             }
-            mtDropdown.setDropdownValues(mtOptions);
             fields.add(mtDropdown);
         }
 
@@ -245,44 +218,56 @@ public class BiBer1992 extends BaseApi {
             brDropdown.setDisplayName(br_opts.get(0).parent().parent()
                                              .previousElementSibling().text().replace("\u00a0", "")
                                              .replace("?", "").trim());
-            List<Map<String, String>> brOptions = new ArrayList<>();
             for (Element opt : br_opts) {
-                Map<String, String> value = new HashMap<>();
-                value.put("key", opt.val());
-                value.put("value", opt.text());
-                brOptions.add(value);
+                brDropdown.addDropdownValue(opt.val(), opt.text());
             }
-            brDropdown.setDropdownValues(brOptions);
             fields.add(brDropdown);
+        }
+
+        Elements sort_opts = doc.select("form select[name=SORTX] option");
+        if (sort_opts.size() > 0) {
+            DropdownSearchField sortDropdown = new DropdownSearchField();
+            sortDropdown.setId(sort_opts.get(0).parent().attr("name"));
+            sortDropdown.setDisplayName(sort_opts.get(0).parent().parent()
+                                                 .previousElementSibling().text()
+                                                 .replace("\u00a0", "")
+                                                 .replace("?", "").trim());
+            for (Element opt : sort_opts) {
+                sortDropdown.addDropdownValue(opt.val(), opt.text());
+            }
+            fields.add(sortDropdown);
         }
 
         return fields;
     }
 
-    private void setMediaTypeFromImageFilename(SearchResult sr, String imagename) {
+    private static MediaType getMediaTypeFromImageFilename(SearchResult sr, String imagename,
+            JSONObject data) {
         String[] fparts1 = imagename.split("/"); // "images/31.gif.S"
         String[] fparts2 = fparts1[fparts1.length - 1].split("\\."); // "31.gif.S"
         String lookup = fparts2[0]; // "31"
 
         if (imagename.contains("amazon")) {
-            sr.setCover(imagename);
+            if (sr != null) sr.setCover(imagename);
+            return null;
         }
 
-        if (m_data.has("mediatypes")) {
+        if (data.has("mediatypes")) {
             try {
-                String typeStr = m_data.getJSONObject("mediatypes").getString(
+                String typeStr = data.getJSONObject("mediatypes").getString(
                         lookup);
-                sr.setType(MediaType.valueOf(typeStr));
+                return MediaType.valueOf(typeStr);
             } catch (Exception e) {
                 if (defaulttypes.containsKey(lookup)) {
-                    sr.setType(defaulttypes.get(lookup));
+                    return defaulttypes.get(lookup);
                 }
             }
         } else {
             if (defaulttypes.containsKey(lookup)) {
-                sr.setType(defaulttypes.get(lookup));
+                return defaulttypes.get(lookup);
             }
         }
+        return null;
     }
 
     /*
@@ -314,17 +299,15 @@ public class BiBer1992 extends BaseApi {
     }
 
     @Override
-    public void init(Library lib) {
-        super.init(lib);
-        http_client = HTTPClient.getNewHttpClient(lib.getData().optBoolean("customssl", false),
-                lib.getData().optBoolean("disguise", false));
+    public void init(Library lib, HttpClientFactory httpClientFactory) {
+        super.init(lib, httpClientFactory);
 
-        m_data = lib.getData();
+        data = lib.getData();
 
         try {
-            m_opac_url = m_data.getString("baseurl");
-            m_opac_dir = m_data.getString("opacdir");
-            m_opac_suffix = m_data.optString("opacsuffix", ".C");
+            opacUrl = data.getString("baseurl");
+            opacDir = data.getString("opacdir");
+            opacSuffix = data.optString("opacsuffix", ".C");
         } catch (JSONException e) {
             throw new RuntimeException(e);
         }
@@ -339,32 +322,26 @@ public class BiBer1992 extends BaseApi {
             start();
         }
 
-        m_nameValuePairs.clear();
+        formData.clear();
         int count = 1;
         for (SearchQuery query : queryList) {
             if ((query.getSearchField() instanceof TextSearchField || query
                     .getSearchField() instanceof BarcodeSearchField)
                     && !query.getValue().equals("")) {
-                m_nameValuePairs.add(new BasicNameValuePair("CNN" + count,
-                        "AND"));
-                m_nameValuePairs.add(new BasicNameValuePair("FLD" + count,
-                        query.getValue()));
-                m_nameValuePairs.add(new BasicNameValuePair("REG" + count,
-                        query.getKey()));
+                addFormData("CNN" + count, "AND");
+                addFormData("FLD" + count, query.getValue());
+                addFormData("REG" + count, query.getKey());
                 count++;
             } else if (query.getSearchField() instanceof DropdownSearchField) {
-                m_nameValuePairs.add(new BasicNameValuePair(query.getKey(),
-                        query.getValue()));
+                addFormData(query.getKey(), query.getValue());
             }
         }
 
-        m_nameValuePairs.add(new BasicNameValuePair("FUNC", "qsel"));
-        m_nameValuePairs.add(new BasicNameValuePair("LANG", "de"));
-        m_nameValuePairs.add(new BasicNameValuePair("SHOW", "20")); // but
-        // result
-        // gives 50
-        m_nameValuePairs.add(new BasicNameValuePair("SHOWSTAT", "N"));
-        m_nameValuePairs.add(new BasicNameValuePair("FROMPOS", "1"));
+        addFormData("FUNC", "qsel");
+        addFormData("LANG", "de");
+        addFormData("SHOW", "20"); // but result gives 50
+        addFormData("SHOWSTAT", "N");
+        addFormData("FROMPOS", "1");
 
         return searchGetPage(1);
     }
@@ -380,13 +357,12 @@ public class BiBer1992 extends BaseApi {
         int startNum = (page - 1) * numOfResultsPerPage + 1;
 
         // remove last element = "FROMPOS", and add a new one
-        m_nameValuePairs.remove(m_nameValuePairs.size() - 1);
-        m_nameValuePairs.add(new BasicNameValuePair("FROMPOS", String
-                .valueOf(startNum)));
 
-        String html = httpPost(m_opac_url + "/" + m_opac_dir + "/query" + m_opac_suffix,
-                new UrlEncodedFormEntity(m_nameValuePairs),
-                getDefaultEncoding());
+        formData.remove(formData.size() - 1);
+        addFormData("FROMPOS", String.valueOf(startNum));
+
+        String html = httpPost(opacUrl + "/" + opacDir + "/query" + opacSuffix,
+                buildFormData(), getDefaultEncoding());
         return parse_search(html, page);
     }
 
@@ -412,6 +388,9 @@ public class BiBer1992 extends BaseApi {
 
         Elements trList = doc.select("form table tr[valign]"); // <tr
         // valign="top">
+        if (trList.size() == 0) { // Schwieberdingen
+            trList = doc.select("table:has(input[type=checkbox]) tr");
+        }
         Elements elem;
         int rows_per_hit = 2;
         if (trList.size() == 1
@@ -422,7 +401,7 @@ public class BiBer1992 extends BaseApi {
         }
 
         try {
-            rows_per_hit = m_data.getInt("rows_per_hit");
+            rows_per_hit = data.getInt("rows_per_hit");
         } catch (JSONException e) {
         }
 
@@ -450,7 +429,9 @@ public class BiBer1992 extends BaseApi {
 
             // ID as href tag
             elem = tr.select("td a");
-            if (elem.size() > 0) {
+            if (elem.size() > 0 && !elem.get(0).attr("href").contains("ISBN")) {
+                // Exclude the cover links in Ludwigsburg as they lead to a page that misses the
+                // reservation button
                 String hrefID = elem.get(0).attr("href");
                 sr.setId(hrefID);
             } else {
@@ -458,8 +439,8 @@ public class BiBer1992 extends BaseApi {
                 elem = tr.select("td input");
                 if (elem.size() > 0) {
                     String nameID = elem.get(0).attr("name").trim();
-                    String hrefID = "/" + m_opac_dir
-                            + "/ftitle" + m_opac_suffix + "?LANG=de&FUNC=full&" + nameID + "=YES";
+                    String hrefID = "/" + opacDir
+                            + "/ftitle" + opacSuffix + "?LANG=de&FUNC=full&" + nameID + "=YES";
                     sr.setId(hrefID);
                 }
             }
@@ -467,7 +448,7 @@ public class BiBer1992 extends BaseApi {
             // media type
             elem = tr.select("td img");
             if (elem.size() > 0) {
-                setMediaTypeFromImageFilename(sr, elem.get(0).attr("src"));
+                sr.setType(getMediaTypeFromImageFilename(sr, elem.get(0).attr("src"), data));
             }
 
             // description
@@ -475,7 +456,7 @@ public class BiBer1992 extends BaseApi {
             try {
                 // array "searchtable" list the column numbers of the
                 // description
-                JSONArray searchtable = m_data.getJSONArray("searchtable");
+                JSONArray searchtable = data.getJSONArray("searchtable");
                 for (int j = 0; j < searchtable.length(); j++) {
                     int colNum = searchtable.getInt(j);
                     if (j > 0) {
@@ -495,6 +476,14 @@ public class BiBer1992 extends BaseApi {
             // needed for Friedrichshafen: "Warenkorb", "Vormerkung"
             // Herford: "Medienkorb"
             desc = desc.replaceAll("<a .*?</a>", "");
+            // remove newlines (useless in HTML)
+            desc = desc.replaceAll("\\n", "");
+            // remove hidden divs ("Titel übernommen!" in Wuerzburg)
+            desc = desc.replaceAll("<div[^>]*style=\"display:none\">.*</div>", "");
+            // remove all invalid HTML tags
+            desc = desc.replaceAll("</?(tr|td|font|table|tbody|div)[^>]*>", "");
+            // replace multiple line breaks by one
+            desc = desc.replaceAll("(<br( /)?>\\s*)+", "<br>");
             sr.setInnerhtml(desc);
 
             if (tr.select("font.p04x09b").size() > 0
@@ -524,29 +513,27 @@ public class BiBer1992 extends BaseApi {
      * OpacApi#getResultById(java.lang.String)
      */
     @Override
-    public DetailledItem getResultById(String id, String homebranch)
+    public DetailedItem getResultById(String id, String homebranch)
             throws IOException {
         if (!initialised) {
             start();
         }
 
         if (!id.contains("ftitle")) {
-            id = "ftitle" + m_opac_suffix + "?LANG=de&FUNC=full&" + id + "=YES";
+            id = "ftitle" + opacSuffix + "?LANG=de&FUNC=full&" + id + "=YES";
         }
         // normally full path like
         // "/opac/ftitle.C?LANG=de&FUNC=full&331313252=YES"
         // but sometimes (Wuerzburg) "ftitle.C?LANG=de&FUNC=full&331313252=YES"
-        if (!id.startsWith("/")) {
-            id = "/" + m_opac_dir + "/" + id;
+        // and sometimes (Hagen) absolute URL including opac_url
+        if (id.startsWith(opacUrl)) {
+            id = id.substring(opacUrl.length());
+        } else if (!id.startsWith("/")) {
+            id = "/" + opacDir + "/" + id;
         }
 
-        HttpGet httpget = new HttpGet(m_opac_url + id);
 
-        HttpResponse response = http_client.execute(httpget);
-
-        String html = convertStreamToString(response.getEntity().getContent());
-        HttpUtils.consume(response.getEntity());
-
+        String html = httpGet(opacUrl + id, getDefaultEncoding());
         return parse_result(html);
     }
 
@@ -556,7 +543,7 @@ public class BiBer1992 extends BaseApi {
      * @see OpacApi#getResult(int)
      */
     @Override
-    public DetailledItem getResult(int position) throws IOException {
+    public DetailedItem getResult(int position) throws IOException {
         // not needed, normall all search results should have an ID,
         // so getResultById() is called
         return null;
@@ -579,8 +566,8 @@ public class BiBer1992 extends BaseApi {
      * Content | Content | Content | Content |
      * |-------------------------------------------------|
      */
-    private DetailledItem parse_result(String html) {
-        DetailledItem item = new DetailledItem();
+    private DetailedItem parse_result(String html) {
+        DetailedItem item = new DetailedItem();
 
         Document document = Jsoup.parse(html);
 
@@ -591,21 +578,21 @@ public class BiBer1992 extends BaseApi {
         Detail detail = null;
 
         // prepare copiestable
-        Map<String, String> copy_last_content = null;
+        Copy copy_last_content = null;
         int copy_row = 0;
 
-        String[] copy_keys = new String[]{DetailledItem.KEY_COPY_BARCODE, // "barcode";
-                DetailledItem.KEY_COPY_BRANCH, // "zst";
-                DetailledItem.KEY_COPY_DEPARTMENT, // "abt";
-                DetailledItem.KEY_COPY_LOCATION, // "ort";
-                DetailledItem.KEY_COPY_STATUS, // "status";
-                DetailledItem.KEY_COPY_RETURN, // "rueckgabe";
-                DetailledItem.KEY_COPY_RESERVATIONS // "vorbestellt";
+        String[] copy_keys = new String[]{"barcode",
+                "branch",
+                "department",
+                "location",
+                "status",
+                "returndate",
+                "reservations"
         };
         int[] copy_map = new int[]{3, 1, -1, 1, 4, -1, -1};
 
         try {
-            JSONObject map = m_data.getJSONObject("copiestable");
+            JSONObject map = data.getJSONObject("copiestable");
             for (int i = 0; i < copy_keys.length; i++) {
                 if (map.has(copy_keys[i])) {
                     copy_map[i] = map.getInt(copy_keys[i]);
@@ -614,6 +601,8 @@ public class BiBer1992 extends BaseApi {
         } catch (Exception e) {
             // "copiestable" is optional
         }
+
+        DateTimeFormatter fmt = DateTimeFormat.forPattern("dd.MM.yyyy").withLocale(Locale.GERMAN);
 
         // go through all rows
         for (Element row : rows) {
@@ -665,13 +654,12 @@ public class BiBer1992 extends BaseApi {
                 // With reverse layout: first row is headline, skipped via
                 // (copy_row > 0)
                 if (copy_row > 0) {
-                    Map<String, String> e = new HashMap<>();
+                    Copy copy = new Copy();
                     for (int j = 0; j < copy_keys.length; j++) {
                         int col = copy_map[j];
                         if (col > -1) {
                             String text = "";
-                            if (copy_keys[j]
-                                    .equals(DetailledItem.KEY_COPY_BRANCH)) {
+                            if (copy_keys[j].equals("branch")) {
                                 // for "Standort" only use ownText() to suppress
                                 // Link "Wegweiser"
                                 text = columns.get(col).ownText()
@@ -685,8 +673,7 @@ public class BiBer1992 extends BaseApi {
                             if (text.length() == 0) {
                                 // empty table cell, take the one above
                                 // this is sometimes the case for "Standort"
-                                if (copy_keys[j]
-                                        .equals(DetailledItem.KEY_COPY_STATUS)) {
+                                if (copy_keys[j].equals("status")) {
                                     // but do it not for Status
                                     text = " ";
                                 } else {
@@ -698,23 +685,24 @@ public class BiBer1992 extends BaseApi {
                                     }
                                 }
                             }
-                            if (copy_keys[j]
-                                    .equals(DetailledItem.KEY_COPY_RESERVATIONS)) {
+                            if (copy_keys[j].equals("reservations")) {
                                 text = text.replace("Vorgemerkt: ", "")
                                            .replace("Vorbestellt: ", "");
                             }
-                            e.put(copy_keys[j], text);
+                            try {
+                                copy.set(copy_keys[j], text, fmt);
+                            } catch (IllegalArgumentException e) {
+                                e.printStackTrace();
+                            }
                         }
                     }
-                    if (e.containsKey(DetailledItem.KEY_COPY_BRANCH)
-                            && e.containsKey(DetailledItem.KEY_COPY_LOCATION)
-                            && e.get(DetailledItem.KEY_COPY_LOCATION) != null
-                            && e.get(DetailledItem.KEY_COPY_LOCATION).equals(
-                            e.get(DetailledItem.KEY_COPY_BRANCH))) {
-                        e.remove(DetailledItem.KEY_COPY_LOCATION);
+                    if (copy.getBranch() != null
+                            && copy.getLocation() != null
+                            && copy.getLocation().equals(copy.getBranch())) {
+                        copy.setLocation(null);
                     }
-                    item.addCopy(e);
-                    copy_last_content = e;
+                    item.addCopy(copy);
+                    copy_last_content = copy;
                 }// ignore 1st row
                 copy_row++;
 
@@ -723,12 +711,12 @@ public class BiBer1992 extends BaseApi {
 
         item.setReservable(true); // We cannot check if media is reservable
 
-        if (m_opac_dir.equals("opax")) {
+        if (opacDir.contains("opax")) {
             if (document.select("input[type=checkbox]").size() > 0) {
                 item.setReservation_info(document
                         .select("input[type=checkbox]").first().attr("name"));
-            } else if (document.select("a[href^=reserv" + m_opac_suffix + "]").size() > 0) {
-                String href = document.select("a[href^=reserv" + m_opac_suffix + "]").first()
+            } else if (document.select("a[href^=reserv" + opacSuffix + "]").size() > 0) {
+                String href = document.select("a[href^=reserv" + opacSuffix + "]").first()
                                       .attr("href");
                 item.setReservation_info(href.substring(href.indexOf("resF_")));
             } else {
@@ -749,36 +737,38 @@ public class BiBer1992 extends BaseApi {
      * de.geeksfactory.opacclient.objects.Account, int, java.lang.String)
      */
     @Override
-    public ReservationResult reservation(DetailledItem item, Account account,
+    public ReservationResult reservation(DetailedItem item, Account account,
             int useraction, String selection) throws IOException {
         String resinfo = item.getReservation_info();
         if (selection == null || selection.equals("confirmed")) {
-            if (m_data.optBoolean("reservation_warning", false) &&
-                    useraction != MultiStepResult.ACTION_CONFIRMATION) {
-                ReservationResult res = new ReservationResult(
-                        MultiStepResult.Status.CONFIRMATION_NEEDED);
-                List<String[]> details = new ArrayList<>();
-                details.add(
-                        new String[]{stringProvider.getString(StringProvider.RESERVATION_WARNING)});
-                res.setDetails(details);
-                return res;
-            }
             // STEP 1: Check if reservable and select branch ("ID1")
 
             // Differences between opax and opac
-            String func = m_opac_dir.equals("opax") ? "sigl" : "resF";
-            String id = m_opac_dir.equals("opax") ? (resinfo.contains("resF") ? resinfo
+            String func = opacDir.contains("opax") ? "sigl" : "resF";
+            String id = opacDir.contains("opax") ? (resinfo.contains("resF") ? resinfo
                     .substring(5) + "=" + resinfo
                     : resinfo + "=resF_" + resinfo)
                     : "ID=" + resinfo;
 
-            String html = httpGet(m_opac_url + "/" + m_opac_dir
-                            + "/reserv" + m_opac_suffix + "?LANG=de&FUNC=" + func + "&" + id,
+            String html = httpGet(opacUrl + "/" + opacDir
+                            + "/reserv" + opacSuffix + "?LANG=de&FUNC=" + func + "&" + id,
                     getDefaultEncoding());
             Document doc = Jsoup.parse(html);
             newStyleReservations = doc
                     .select("input[name=" + resinfo.replace("resF_", "") + "]")
                     .val().length() > 4;
+
+            for (Element input : doc.select("input, select")) {
+                if ("ID1".equals(input.attr("name"))) {
+                    reservationsId1First = true;
+                    break;
+                } else if ("FUNC".equals(input.attr("name")) ||
+                        "vors".equals(input.attr("value"))) {
+                    reservationsId1First = false;
+                    break;
+                }
+            }
+
             Elements optionsElements = doc.select("select[name=ID1] option");
             if (optionsElements.size() > 0) {
                 List<Map<String, String>> options = new ArrayList<>();
@@ -808,29 +798,28 @@ public class BiBer1992 extends BaseApi {
             }
         } else {
             // STEP 2: Reserve
-            List<NameValuePair> nameValuePairs = new ArrayList<>();
-            nameValuePairs.add(new BasicNameValuePair("LANG", "de"));
-            nameValuePairs.add(new BasicNameValuePair("BENUTZER", account
-                    .getName()));
-            nameValuePairs.add(new BasicNameValuePair("PASSWORD", account
-                    .getPassword()));
-            nameValuePairs.add(new BasicNameValuePair("FUNC", "vors"));
-            if (m_opac_dir.equals("opax")) {
-                nameValuePairs.add(new BasicNameValuePair(resinfo.replace(
+            FormBody.Builder formData = new FormBody.Builder(Charset.forName(getDefaultEncoding()));
+            formData.add("LANG", "de");
+            formData.add("BENUTZER", account.getName());
+            formData.add("PASSWORD", account.getPassword());
+            if (reservationsId1First) formData.add("ID1", selection.split(":")[0]);
+            formData.add("FUNC", "vors");
+            if (opacDir.contains("opax")) {
+                formData.add(resinfo.replace(
                         "resF_", ""), "vors"
                         + (newStyleReservations ? resinfo.replace("resF_", "")
-                        : "")));
+                        : ""));
             }
             if (newStyleReservations) {
-                nameValuePairs.add(new BasicNameValuePair("ID11", selection
-                        .split(":")[1]));
+                formData.addEncoded("ID11", selection.split(":")[1]);
             }
-            nameValuePairs.add(new BasicNameValuePair("ID1", selection
-                    .split(":")[0]));
+            if (!reservationsId1First) formData.add("ID1", selection.split(":")[0]);
 
-            String html = httpPost(m_opac_url + "/" + m_opac_dir
-                            + "/setreserv" + m_opac_suffix, new UrlEncodedFormEntity(nameValuePairs),
-                    getDefaultEncoding());
+            String html = httpPost(
+                    opacUrl + "/" + opacDir + "/setreserv" + opacSuffix,
+                    formData.build(),
+                    getDefaultEncoding()
+            );
 
             Document doc = Jsoup.parse(html);
             if (doc.select(".tab21 .p44b, .p2").text().contains("eingetragen")) {
@@ -872,27 +861,25 @@ public class BiBer1992 extends BaseApi {
         // prolong media via http POST
         // Offenburg: URL is .../opac/verl.C
         // Hagen: URL is .../opax/renewmedia.C
-        if (m_opac_dir.equals("opax")) {
-            command = "/renewmedia" + m_opac_suffix;
+        if (opacDir.contains("opax")) {
+            command = "/renewmedia" + opacSuffix;
         } else {
-            command = "/verl" + m_opac_suffix;
+            command = "/verl" + opacSuffix;
         }
 
-        List<NameValuePair> nameValuePairs = new ArrayList<>(2);
-        nameValuePairs.add(new BasicNameValuePair(media, "YES"));
-        nameValuePairs
-                .add(new BasicNameValuePair("BENUTZER", account.getName()));
-        nameValuePairs.add(new BasicNameValuePair("FUNC", "verl"));
-        nameValuePairs.add(new BasicNameValuePair("LANG", "de"));
-        nameValuePairs.add(new BasicNameValuePair("PASSWORD", account
-                .getPassword()));
+        FormBody.Builder formData = new FormBody.Builder(Charset.forName(getDefaultEncoding()));
+        formData.add(media, "YES");
+        formData.add("BENUTZER", account.getName());
+        formData.add("FUNC", "verl");
+        formData.add("LANG", "de");
+        formData.add("PASSWORD", account.getPassword());
 
-        String html = httpPost(m_opac_url + "/" + m_opac_dir + command,
-                new UrlEncodedFormEntity(nameValuePairs), getDefaultEncoding());
+        String html = httpPost(opacUrl + "/" + opacDir + command,
+                formData.build(), getDefaultEncoding());
         if (html.contains("no such key")) {
             html = httpPost(
-                    m_opac_url + "/" + m_opac_dir + command.replace(".C", ".S"),
-                    new UrlEncodedFormEntity(nameValuePairs),
+                    opacUrl + "/" + opacDir + command.replace(".C", ".S"),
+                    formData.build(),
                     getDefaultEncoding());
         }
 
@@ -952,21 +939,20 @@ public class BiBer1992 extends BaseApi {
     @Override
     public CancelResult cancel(String media, Account account, int useraction,
             String selection) throws IOException, OpacErrorException {
-        List<NameValuePair> nameValuePairs = new ArrayList<>();
-        nameValuePairs.add(new BasicNameValuePair("LANG", "de"));
-        nameValuePairs.add(new BasicNameValuePair("FUNC", "vorl"));
-        if (m_opac_dir.equals("opax")) {
-            nameValuePairs.add(new BasicNameValuePair("BENUTZER", account
-                    .getName()));
-            nameValuePairs.add(new BasicNameValuePair("PASSWORD", account
-                    .getPassword()));
+        FormBody.Builder formData = new FormBody.Builder(Charset.forName(getDefaultEncoding()));
+        formData.add("LANG", "de");
+        formData.add("FUNC", "vorl");
+        if (opacDir.contains("opax")) {
+            formData.add("BENUTZER", account.getName());
+            formData.add("PASSWORD", account.getPassword());
         }
-        nameValuePairs.add(new BasicNameValuePair(media, "YES"));
+        formData.add(media, "YES");
 
-        String action = m_opac_dir.equals("opax") ? "/delreserv" + m_opac_suffix : "/vorml" + m_opac_suffix;
+        String action =
+                opacDir.contains("opax") ? "/delreserv" + opacSuffix : "/vorml" + opacSuffix;
 
-        String html = httpPost(m_opac_url + "/" + m_opac_dir + action,
-                new UrlEncodedFormEntity(nameValuePairs), getDefaultEncoding());
+        String html = httpPost(opacUrl + "/" + opacDir + action,
+                formData.build(), getDefaultEncoding());
 
         Document doc = Jsoup.parse(html);
         if (doc.select(".tab21 .p44b, .p2").text().contains("Vormerkung wurde")) {
@@ -992,30 +978,79 @@ public class BiBer1992 extends BaseApi {
         AccountData res = new AccountData(account.getId());
 
         // get media
-        List<Map<String, String>> media = accountGetMedia(account, res);
+        List<LentItem> media = accountGetMedia(account, res);
         res.setLent(media);
 
         // get reservations
-        List<Map<String, String>> reservations = accountGetReservations(account);
+        List<ReservedItem> reservations = accountGetReservations(account);
         res.setReservations(reservations);
 
         return res;
     }
 
-    private List<Map<String, String>> accountGetMedia(Account account,
-            AccountData res) throws IOException, JSONException,
+    private List<LentItem> accountGetMedia(Account account, AccountData res) throws IOException, JSONException,
             OpacErrorException {
-
-        List<Map<String, String>> media = new ArrayList<>();
-
         // get media list via http POST
         Document doc = accountHttpPost(account, "medk");
+
+        return parseMediaList(res, account, doc, data, reportHandler,
+                loadJsonResource("/biber1992/headers_lent.json"));
+    }
+
+    static List<LentItem> parseMediaList(AccountData res, Account account, Document doc,
+            JSONObject data, ReportHandler reportHandler, JSONObject headers_lent)
+            throws JSONException {
+        List<LentItem> media = new ArrayList<>();
         if (doc == null) {
             return media;
         }
 
+        if (doc.select("form[name=medkl] table").size() == 0){
+            return new ArrayList<LentItem>();
+        }
+
         // parse result list
-        JSONObject copymap = m_data.getJSONObject("accounttable");
+        Map<String, Integer> copymap = new HashMap<>();
+        Map<String, Integer> colspanmap = new HashMap<>();
+        Elements headerCells = doc.select("form[name=medkl] table tr:has(th)").last().select("th");
+        JSONArray headersList = new JSONArray();
+        JSONArray unknownHeaders = new JSONArray();
+        int j = 0;
+        for (Element headerCell : headerCells) {
+            String header = headerCell.text();
+
+            String colspan_str = headerCell.attr("colspan");
+            int colspan = 1;
+            if (!colspan_str.equals("")) {
+                colspan = Integer.valueOf(colspan_str);
+            }
+
+            headersList.put(header);
+            if (headers_lent.has(header)) {
+                if (!headers_lent.isNull(header)) {
+                    copymap.put(headers_lent.getString(header), j);
+                    colspanmap.put(headers_lent.getString(header), colspan);
+                }
+            } else {
+                unknownHeaders.put(header);
+            }
+
+            j += colspan;
+        }
+
+        if (unknownHeaders.length() > 0) {
+            // send report
+            JSONObject reportData = new JSONObject();
+            reportData.put("headers", headersList);
+            reportData.put("unknown_headers", unknownHeaders);
+            Report report = new Report(account.getLibrary(), "biber1992", "unknown header - lent",
+                    DateTime.now(), reportData);
+            reportHandler.sendReport(report);
+
+            // fallback to JSON
+            JSONObject accounttable = data.getJSONObject("accounttable");
+            copymap = jsonToMap(accounttable);
+        }
 
         Pattern expire = Pattern.compile("Ausweisg.ltigkeit: ([0-9.]+)");
         Pattern fees = Pattern.compile("([0-9,.]+) .");
@@ -1027,7 +1062,7 @@ public class BiBer1992 extends BaseApi {
                 res.setPendingFees(text);
             }
         }
-        SimpleDateFormat sdf = new SimpleDateFormat("dd.MM.yyyy", Locale.GERMAN);
+        DateTimeFormatter fmt = DateTimeFormat.forPattern("dd.MM.yyyy").withLocale(Locale.GERMAN);
         Elements rowElements = doc.select("form[name=medkl] table tr");
 
         // rows: skip 1st row -> title row
@@ -1036,120 +1071,141 @@ public class BiBer1992 extends BaseApi {
             if (tr.child(0).tagName().equals("th")) {
                 continue;
             }
-            Map<String, String> e = new HashMap<>();
+            LentItem item = new LentItem();
+
+            Elements mediatypeImg = tr.select("td img");
+            if (mediatypeImg.size() > 0) {
+                item.setMediaType(getMediaTypeFromImageFilename(
+                        null, mediatypeImg.get(0).attr("src"), data));
+            }
 
             Pattern itemIdPat = Pattern
-                    .compile("javascript:smAcc\\('[a-z]+','[a-z]+','([A-Za-z0-9]+)'\\)");
+                    .compile("javascript:(?:smAcc|smMedk)\\('[a-z]+','[a-z]+','([A-Za-z0-9]+)'\\)");
             // columns: all elements of one media
-            Iterator<?> keys = copymap.keys();
-            while (keys.hasNext()) {
-                String key = (String) keys.next();
-                int index;
-                try {
-                    index = copymap.has(key) ? copymap.getInt(key) : -1;
-                } catch (JSONException e1) {
-                    index = -1;
+            for (Map.Entry<String, Integer> entry : copymap.entrySet()) {
+                String key = entry.getKey();
+                int index = entry.getValue();
+                if (tr.child(index).select("a").size() == 1) {
+                    Matcher matcher = itemIdPat.matcher(tr.child(index)
+                                                          .select("a").attr("href"));
+                    if (matcher.find()) item.setId(matcher.group(1));
                 }
-                if (index >= 0) {
-                    String value = tr.child(index).text().trim();
 
-                    // Signature, Author and Title is the same field:
-                    // "autor: title"
-                    // sometimes there is no ":" then only the title is given
-                    if (key.equals(AccountData.KEY_LENT_AUTHOR)) {
-                        if (value.contains(":")) {
-                            // Autor: remove everything starting at ":"
-                            value = value.replaceFirst("^[^:]*/", "").trim();
-                            value = value.replaceFirst(":.*", "").trim();
-                        } else {
-                            // no Autor given<
-                            value = "";
-                        }
-                    } else if (key.equals(AccountData.KEY_LENT_TITLE)) {
-                        if (value.contains(":")) {
-                            // Title: remove everything up to ":"
-                            value = value.replaceFirst(".*:", "").trim();
-                            value = value.replaceFirst("^(.*)/[^/]*$", "$1")
-                                         .trim();
-                        } else {
-                            // Remove everything except the signature
-                            value = value.replaceFirst("^[^/]*/([^/]*)/[^/]*$",
-                                    "$1").trim();
-                            value = value.replaceFirst("^[^/]*/([^/]*)$", "$1")
-                                         .trim();
-                        }
+                String value = tr.child(index).text().trim().replace("\u00A0", "");
+                if (colspanmap.get(key) > 1) {
+                    for (int k = 1; k < colspanmap.get(key); k++) {
+                        value = value + " " + tr.child(index + k).text().trim().replace("\u00A0", "");
                     }
-
-                    if (tr.child(index).select("a").size() == 1) {
-                        Matcher matcher = itemIdPat.matcher(tr.child(index)
-                                                              .select("a").attr("href"));
-                        if (matcher.find()) {
-                            e.put(AccountData.KEY_LENT_ID, matcher.group(1));
-                        }
-                    }
-
-                    if (value.length() != 0) {
-                        e.put(key, value);
-                    }
+                    value = value.trim();
                 }
+
+                switch (key) {
+                    case "author+title":
+                        item.setTitle(findTitleAndAuthor(value)[0]);
+                        item.setAuthor(findTitleAndAuthor(value)[1]);
+                        continue;
+                    case "returndate":
+                        try {
+                            value = fmt.parseLocalDate(value).toString();
+                        } catch (IllegalArgumentException e1) {
+                            e1.printStackTrace();
+                        }
+                        break;
+                    case "renewals_number":
+                    case "status":
+                        if (value != null && value.length() != 0) {
+                            if (item.getStatus() == null) {
+                                item.setStatus(value);
+                            } else {
+                                item.setStatus(item.getStatus() + ", " + value);
+                            }
+                        }
+                        continue;
+                }
+
+                if (value != null && value.length() != 0) item.set(key, value);
             }
 
             if (tr.select("input[type=checkbox][value=YES]").size() > 0) {
-                e.put(AccountData.KEY_LENT_LINK,
-                        tr.select("input[type=checkbox][value=YES]").attr(
-                                "name"));
+                item.setProlongData(tr.select("input[type=checkbox][value=YES]").attr("name"));
             }
 
-            // calculate lent timestamp for notification purpose
-            if (e.containsKey(AccountData.KEY_LENT_DEADLINE)) {
-                try {
-                    e.put(AccountData.KEY_LENT_DEADLINE_TIMESTAMP, String
-                            .valueOf(sdf.parse(
-                                    e.get(AccountData.KEY_LENT_DEADLINE))
-                                        .getTime()));
-                } catch (ParseException e1) {
-                    e1.printStackTrace();
-                }
-            }
-
-            media.add(e);
+            media.add(item);
         }
-
         return media;
     }
 
-    private List<Map<String, String>> accountGetReservations(Account account)
+    private List<ReservedItem> accountGetReservations(Account account)
             throws IOException, JSONException, OpacErrorException {
-
-        List<Map<String, String>> reservations = new ArrayList<>();
-
-        if (!m_data.has("reservationtable")) {
-            // reservations not specifically supported, let's just try it
-            // with default values but fail silently
-            JSONObject restblobj = new JSONObject();
-            restblobj.put("author", 3);
-            restblobj.put("availability", 6);
-            restblobj.put("branch", -1);
-            restblobj.put("cancelurl", -1);
-            restblobj.put("expirationdate", 5);
-            restblobj.put("title", 3);
-            m_data.put("reservationtable", restblobj);
-            try {
-                return accountGetReservations(account);
-            } catch (Exception e) {
-                return reservations;
-            }
-        }
-
         // get reservations list via http POST
         Document doc = accountHttpPost(account, "vorm");
+
+        return parseResList(account, doc, data, reportHandler,
+                loadJsonResource("/biber1992/headers_reservations.json"));
+    }
+
+    static List<ReservedItem> parseResList(Account account, Document doc, JSONObject data,
+            ReportHandler reportHandler, JSONObject headers_reservations)
+            throws JSONException {
+        List<ReservedItem> reservations = new ArrayList<>();
         if (doc == null) {
             // error message as html result
             return reservations;
         }
+        if (doc.select("form[name=vorml] table").size() == 0){
+            return new ArrayList<ReservedItem>();
+        }
 
         // parse result list
-        JSONObject copymap = m_data.getJSONObject("reservationtable");
+        Map<String, Integer> copymap = new HashMap<>();
+        Elements headerCells = doc.select("form[name=vorml] table tr:has(th)").last().select("th");
+        JSONArray headersList = new JSONArray();
+        JSONArray unknownHeaders = new JSONArray();
+        int j = 0;
+        for (Element headerCell : headerCells) {
+            String header = headerCell.text();
+            headersList.put(header);
+            if (headers_reservations.has(header)) {
+                if (!headers_reservations.isNull(header)) {
+                    copymap.put(headers_reservations.getString(header), j);
+                }
+            } else {
+                unknownHeaders.put(header);
+            }
+
+            String colspan = headerCell.attr("colspan");
+            j += !colspan.equals("") ? Integer.valueOf(colspan) : 1;
+        }
+
+        if (unknownHeaders.length() > 0) {
+            // send report
+            JSONObject reportData = new JSONObject();
+            reportData.put("headers", headersList);
+            reportData.put("unknown_headers", unknownHeaders);
+            Report report =
+                    new Report(account.getLibrary(), "biber1992", "unknown header - reservations",
+                            DateTime.now(), reportData);
+            reportHandler.sendReport(report);
+
+            // fallback to JSON
+            JSONObject reservationtable;
+            if (data.has("reservationtable")) {
+                reservationtable = data.getJSONObject("reservationtable");
+            } else {
+                // reservations not specifically supported, let's just try it
+                // with default values but fail silently
+                reservationtable = new JSONObject();
+                reservationtable.put("author", 3);
+                reservationtable.put("availability", 6);
+                reservationtable.put("branch", -1);
+                reservationtable.put("cancelurl", -1);
+                reservationtable.put("expirationdate", 5);
+                reservationtable.put("title", 3);
+            }
+            copymap = jsonToMap(reservationtable);
+        }
+
+        DateTimeFormatter fmt = DateTimeFormat.forPattern("dd.MM.yyyy").withLocale(Locale.GERMAN);
         Elements rowElements = doc.select("form[name=vorml] table tr");
 
         // rows: skip 1st row -> title row
@@ -1158,69 +1214,107 @@ public class BiBer1992 extends BaseApi {
             if (tr.child(0).tagName().equals("th")) {
                 continue;
             }
-            Map<String, String> e = new HashMap<>();
+            ReservedItem item = new ReservedItem();
 
-            e.put(AccountData.KEY_RESERVATION_CANCEL,
-                    tr.select("input[type=checkbox]").attr("name"));
+            item.setCancelData(tr.select("input[type=checkbox]").attr("name"));
+
+            Elements mediatypeImg = tr.select("td img");
+            if (mediatypeImg.size() > 0) {
+                item.setMediaType(getMediaTypeFromImageFilename(
+                        null, mediatypeImg.get(0).attr("src"), data));
+            }
 
             // columns: all elements of one media
-            Iterator<?> keys = copymap.keys();
-            while (keys.hasNext()) {
-                String key = (String) keys.next();
-                int index = copymap.getInt(key);
-                if (index >= 0) {
-                    String value = tr.child(index).text();
+            for (Map.Entry<String, Integer> entry : copymap.entrySet()) {
+                String key = entry.getKey();
+                int index = entry.getValue();
+                String value = tr.child(index).text().trim();
 
-                    // Author and Title is the same field: "autor: title"
-                    // sometimes there is no ":" then only the title is given
-                    if (key.equals(AccountData.KEY_LENT_AUTHOR)) {
-                        if (value.contains(":")) {
-                            // Autor: remove everything starting at ":"
-                            value = value.replaceFirst("^[^:]*/", "").trim();
-                            value = value.replaceFirst(":.*", "").trim();
-                        } else {
-                            // no Autor given<
-                            value = "";
+                switch (key) {
+                    case "author+title":
+                        item.setTitle(findTitleAndAuthor(value)[0]);
+                        item.setAuthor(findTitleAndAuthor(value)[1]);
+                        continue;
+                    case "availability":
+                        try {
+                            value = fmt.parseLocalDate(value).toString();
+                        } catch (IllegalArgumentException e1) {
+                            key = "status";
                         }
-                    } else if (key.equals(AccountData.KEY_LENT_TITLE)) {
-                        if (value.contains(":")) {
-                            // Title: remove everything up to ":"
-                            value = value.replaceFirst(".*:", "").trim();
-                            value = value.replaceFirst("^(.*)/[^/]*$", "$1")
-                                         .trim();
-                        } else {
-                            // Remove everything except the signature
-                            value = value.replaceFirst("^[^/]*/([^/]*)/[^/]*$",
-                                    "$1").trim();
-                            value = value.replaceFirst("^[^/]*/([^/]*)$", "$1")
-                                         .trim();
+                        break;
+                    case "expirationdate":
+                        try {
+                            value = fmt.parseLocalDate(value).toString();
+                        } catch (IllegalArgumentException e1) {
+                            key = "status";
                         }
-                    }
+                        break;
+                }
 
-                    if (value.length() != 0) {
-                        e.put(key, value);
-                    }
+                if (value != null && value.length() != 0) {
+                    item.set(key, value);
                 }
             }
-            reservations.add(e);
+            reservations.add(item);
         }
-
         return reservations;
+    }
+
+    /*
+     * BiBer returns titles, authors and call numbers all in one field and cuts them of after a
+     * fixed length. The exact formats differ greatly.
+     *
+     * Examples:
+     *
+     * Author: Title
+     * Callnumber / Title
+     * Callnumber / Author: Title
+     *
+     * Note that magazine titles might contain slashes as well, e.g. "Android Welt 3/15 Mai-Juni"
+     */
+    private static Pattern PATTERN_TITLE_AUTHOR =
+            Pattern.compile("(?:" +                     // Start matching the call number
+                    "[^/]+" +                           // The call number itself
+                    // A slash is only considered a separator between call number if it
+                    // isn't surrounded by digits (e.g. 2/12 in a magazine title)
+                    "(?<![0-9])/(?![0-9]{2})" +
+                    ")?" +                              // Signature is optional
+
+                    "(?:" +                             // Start matching the author
+                    "([^:]+)" +                         // The author itself
+                    // The author is separated form the title by a colon
+                    ":" +
+                    ")?" +                              // Author is optional
+
+                    // Everything else is considered to be part of the title
+                    "(.*)");
+
+    public static String[] findTitleAndAuthor(String value) {
+        Matcher m = PATTERN_TITLE_AUTHOR.matcher(value);
+        if (m.matches()) {
+            return new String[]{m.group(2) != null ? m.group(2).trim() : null,
+                    m.group(1) != null ? m.group(1).trim() : null};
+        } else {
+            return new String[]{null, null};
+        }
     }
 
     private Document accountHttpPost(Account account, String func)
             throws IOException, OpacErrorException {
-        // get media list via http POST
-        List<NameValuePair> nameValuePairs = new ArrayList<>(2);
-        nameValuePairs.add(new BasicNameValuePair("FUNC", func));
-        nameValuePairs.add(new BasicNameValuePair("LANG", "de"));
-        nameValuePairs
-                .add(new BasicNameValuePair("BENUTZER", account.getName()));
-        nameValuePairs.add(new BasicNameValuePair("PASSWORD", account
-                .getPassword()));
+        return accountHttpPost(account, func, "user.C");
+    }
 
-        String html = httpPost(m_opac_url + "/" + m_opac_dir + "/user.C",
-                new UrlEncodedFormEntity(nameValuePairs), getDefaultEncoding());
+    private Document accountHttpPost(Account account, String func, String page)
+            throws IOException, OpacErrorException {
+        // get media list via http POST
+        FormBody.Builder formData = new FormBody.Builder(Charset.forName(getDefaultEncoding()));
+        formData.add("FUNC", func);
+        formData.add("LANG", "de");
+        formData.add("BENUTZER", account.getName());
+        formData.add("PASSWORD", account.getPassword());
+
+        String html = httpPost(opacUrl + "/" + opacDir + "/" + page,
+                formData.build(), getDefaultEncoding());
 
         Document doc = Jsoup.parse(html);
 
@@ -1236,12 +1330,20 @@ public class BiBer1992 extends BaseApi {
             }
             throw new OpacErrorException(errText);
         }
-        if (doc.select("tr td font[color=red]").size() == 1) {
-            throw new OpacErrorException(doc.select("font[color=red]").text());
+        if (doc.title().contains("Server error") || doc.title().contains("opax/titel!")) {
+            // seen in Minden & Bochum, real error message is only shown on login
+            accountHttpPost(account, "login", "login.C");
+        }
+        if (doc.select("tr td font[color=red], tr:eq(1) td:eq(0) .p02b").size() == 1) {
+            // Jena: Onleihe advertisement recognized as error message
+            String text = doc.select("tr td font[color=red], tr:eq(1) td:eq(0) .p02b").text();
+            if (!text.contains("Ausleihe per Download rund um die Uhr")) {
+                throw new OpacErrorException(text);
+            }
         }
         if (doc.text().contains("No html file set")
-                || doc.text().contains(
-                "Der BIBDIA Server konnte den Auftrag nicht")) {
+                || doc.text().contains("Der BIBDIA Server konnte den Auftrag nicht")
+                || doc.text().contains("Fehler in der Ausf")) {
             throw new OpacErrorException(
                     stringProvider.getString(StringProvider.WRONG_LOGIN_DATA));
         }
@@ -1250,30 +1352,15 @@ public class BiBer1992 extends BaseApi {
     }
 
     @Override
-    public boolean isAccountSupported(Library library) {
-        return !library.getData().isNull("accounttable");
-    }
-
-    @Override
-    public boolean isAccountExtendable() {
-        return false;
-    }
-
-    @Override
-    public String getAccountExtendableInfo(Account account) throws IOException {
-        return null;
-    }
-
-    @Override
     public String getShareUrl(String id, String title) {
         // id is normally full path like
         // "/opac/ftitle.C?LANG=de&FUNC=full&331313252=YES"
         // but sometimes (Wuerzburg) "ftitle.C?LANG=de&FUNC=full&331313252=YES"
         if (!id.startsWith("/")) {
-            id = "/" + m_opac_dir + "/" + id;
+            id = "/" + opacDir + "/" + id;
         }
 
-        return m_opac_url + id;
+        return opacUrl + id;
     }
 
     @Override
@@ -1298,7 +1385,7 @@ public class BiBer1992 extends BaseApi {
             JSONException, OpacErrorException {
         Document doc = accountHttpPost(account, "medk");
         if (doc == null) {
-            throw new NotReachableException();
+            throw new NotReachableException("Account document was null");
         }
     }
 

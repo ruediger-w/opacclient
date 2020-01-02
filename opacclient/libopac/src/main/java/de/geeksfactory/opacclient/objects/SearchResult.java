@@ -21,7 +21,9 @@
  */
 package de.geeksfactory.opacclient.objects;
 
-import android.graphics.Bitmap;
+import java.util.List;
+
+import de.geeksfactory.opacclient.searchfields.SearchQuery;
 
 /**
  * Object representing a search result
@@ -34,9 +36,10 @@ public class SearchResult implements CoverHolder {
     private String id;
     private String innerhtml;
     private Status status;
-    private Bitmap coverBitmap;
+    private byte[] coverBitmap;
     private String cover;
     private int page;
+    private List<SearchQuery> childQuery;
 
     /**
      * Create a new SearchResult object
@@ -124,8 +127,8 @@ public class SearchResult implements CoverHolder {
     }
 
     /**
-     * Set HTML describing the item to the user in a result list. Only "simple" HTML like <b>, <i>,
-     * etc. can be used.
+     * Set HTML describing the item to the user in a result list. Only "simple" HTML like
+     * {@code <b>}, {@code <i>}, etc. can be used.
      *
      * @param innerhtml simple HTML code
      */
@@ -170,7 +173,7 @@ public class SearchResult implements CoverHolder {
      * Get cover image bitmap
      */
     @Override
-    public Bitmap getCoverBitmap() {
+    public byte[] getCoverBitmap() {
         return coverBitmap;
     }
 
@@ -178,7 +181,7 @@ public class SearchResult implements CoverHolder {
      * Set cover image bitmap
      */
     @Override
-    public void setCoverBitmap(Bitmap coverBitmap) {
+    public void setCoverBitmap(byte[] coverBitmap) {
         this.coverBitmap = coverBitmap;
     }
 
@@ -198,6 +201,22 @@ public class SearchResult implements CoverHolder {
         this.cover = cover;
     }
 
+    /**
+     * Get the child query (see setChildQuery for details)
+     */
+    public List<SearchQuery> getChildQuery() {
+        return childQuery;
+    }
+
+    /**
+     * Set the child query. If this is set, clicking the item in the UI will not
+     * open a detail page, but start another search.
+     */
+    public void setChildQuery(
+            List<SearchQuery> childQuery) {
+        this.childQuery = childQuery;
+    }
+
     @Override
     public String toString() {
         return "SearchResult [id= " + id + ", type=" + type + ", nr=" + nr
@@ -214,7 +233,8 @@ public class SearchResult implements CoverHolder {
         GAME_CONSOLE, EBOOK, SCORE_MUSIC, PACKAGE_BOOKS, UNKNOWN, NEWSPAPER,
         BOARDGAME, SCHOOL_VERSION, MAP, BLURAY, AUDIO_CASSETTE, ART, MAGAZINE,
         GAME_CONSOLE_WII, GAME_CONSOLE_NINTENDO, GAME_CONSOLE_PLAYSTATION,
-        GAME_CONSOLE_XBOX, LP_RECORD, MP3, URL, EVIDEO, EDOC, EAUDIO
+        GAME_CONSOLE_XBOX, LP_RECORD, MP3, URL, EVIDEO, EDOC, EAUDIO, DEVICE,
+        MICROFORM
     }
 
     /**

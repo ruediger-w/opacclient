@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+             xmlns:app="http://schemas.android.com/apk/res-auto"
+             xmlns:tools="http://schemas.android.com/tools"
              android:layout_width="fill_parent"
              android:layout_height="fill_parent">
 
@@ -33,9 +35,9 @@
                 android:id="@+id/rlSimpleSearch"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:background="@color/account_head_bg"
+                android:background="@color/simple_search_bg"
                 android:orientation="vertical"
-                android:padding="8dp"
+                android:padding="@dimen/simple_search_padding"
                 android:transitionName="@string/transition_gray_box">
 
                 <EditText
@@ -46,8 +48,8 @@
                     android:ems="10"
                     android:hint="@string/search_free"
                     android:inputType="text"
-                    android:textColorHint="@color/hint_fg"
-                    android:textColor="@color/account_head_fg">
+                    android:textColor="@color/simple_search_fg"
+                    android:textColorHint="@color/simple_search_hint">
 
                     <requestFocus/>
                 </EditText>
@@ -95,7 +97,7 @@
                     android:layout_width="fill_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginBottom="10dp"
-                    android:layout_marginTop="8dp"
+                    android:layout_marginTop="@dimen/advanced_search_header_mtop"
                     android:text="@string/search_advanced"
                     android:textAppearance="@style/TextAppearance.Opacapp.Subhead"/>
 
@@ -118,9 +120,11 @@
                     <ImageView
                         android:id="@+id/ivExpandIcon"
                         android:layout_width="wrap_content"
-                        android:contentDescription="@string/expand"
                         android:layout_height="wrap_content"
-                        android:src="@drawable/ic_action_expand"/>
+                        android:contentDescription="@string/expand"
+                        app:srcCompat="@drawable/ic_expand_24dp"
+                        tools:ignore="MissingPrefix"
+                        tools:src="@drawable/ic_expand_24dp"/>
 
                     <TextView
                         android:id="@+id/tvExpandString"

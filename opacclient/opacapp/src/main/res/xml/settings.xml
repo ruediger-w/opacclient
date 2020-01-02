@@ -10,17 +10,24 @@
             android:title="@string/accounts"/>
 
         <ListPreference
-            android:entries="@array/startup_labels"
-            android:key="startup_fragment"
-            android:title="@string/startup_title"
-            android:summary="@string/startup_summary"
             android:defaultValue="search"
-            android:entryValues="@array/startup_values"/>
+            android:entries="@array/startup_labels"
+            android:entryValues="@array/startup_values"
+            android:key="startup_fragment"
+            android:summary="@string/startup_summary"
+            android:title="@string/startup_title" />
 
         <EditTextPreference
             android:key="email"
             android:summary="@string/email_address_description"
             android:title="@string/email_address"/>
+
+        <CheckBoxPreference
+            android:defaultValue="true"
+            android:key="on_data_load_covers"
+            android:title="@string/load_covers_mobile_data"
+            android:summaryOn="@string/load_covers_mobile_data_on"
+            android:summaryOff="@string/load_covers_mobile_data_off"/>
     </PreferenceCategory>
     <PreferenceCategory android:title="@string/notifications">
         <CheckBoxPreference
@@ -34,13 +41,28 @@
             android:title="@string/notification_service_wifionly"/>
 
         <ListPreference
-            android:defaultValue="259200000"
+            android:defaultValue="3"
             android:dependency="notification_service"
             android:entries="@array/warning"
             android:entryValues="@array/warning_n"
             android:key="notification_warning"
             android:summary="@string/notification_warning_desc"
             android:title="@string/notification_warning"/>
+
+        <CheckBoxPreference
+            android:defaultValue="true"
+            android:dependency="notification_service"
+            android:key="notification_repeat"
+            android:title="@string/notification_repeat" />
+    </PreferenceCategory>
+    <PreferenceCategory android:title="@string/preference_category_library_config">
+        <Preference
+            android:key="update_library_config"
+            android:title="@string/preference_update_library_config"/>
+        <Preference
+            android:key="reset_library_config"
+            android:title="@string/preference_reset_library_config"
+            android:summary="@string/preference_reset_library_config_desc"/>
     </PreferenceCategory>
     <PreferenceCategory android:title="@string/developer_settings">
         <CheckBoxPreference
@@ -53,6 +75,10 @@
             android:key="meta_clear"
             android:summary="@string/meta_clear"
             android:title="@string/meta_clear_title"/>
+
+        <Preference
+            android:key="meta_run_check"
+            android:title="@string/meta_run_check"/>
     </PreferenceCategory>
 
 </PreferenceScreen>

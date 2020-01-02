@@ -21,6 +21,13 @@
  */
 package de.geeksfactory.opacclient.i18n;
 
+import de.geeksfactory.opacclient.objects.SearchResult;
+
+/**
+ * This is the simplest possible implementation of the {@link StringProvider} interface. For any
+ * given string identifier, it just returns the identifier itself. Arguments (if any) will be
+ * appended to the identifier separated by a space.
+ */
 public class DummyStringProvider implements StringProvider {
     @Override
     public String getString(String identifier) {
@@ -49,5 +56,10 @@ public class DummyStringProvider implements StringProvider {
             builder.append(arg.toString());
         }
         return builder.toString();
+    }
+
+    @Override
+    public String getMediaTypeName(SearchResult.MediaType mediaType) {
+        return mediaType.toString();
     }
 }

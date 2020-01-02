@@ -1,23 +1,20 @@
 /**
  * Copyright (C) 2013 by Raphael Michel under the MIT license:
  *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), 
- * to deal in the Software without restriction, including without limitation 
- * the rights to use, copy, modify, merge, publish, distribute, sublicense, 
- * and/or sell copies of the Software, and to permit persons to whom the Software 
- * is furnished to do so, subject to the following conditions:
+ * Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
+ * associated documentation files (the "Software"), to deal in the Software without restriction,
+ * including without limitation the rights to use, copy, modify, merge, publish, distribute,
+ * sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
  *
- * The above copyright notice and this permission notice shall be included in 
- * all copies or substantial portions of the Software.
+ * The above copyright notice and this permission notice shall be included in all copies or
+ * substantial portions of the Software.
  *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR 
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. 
- * IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, 
- * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, 
- * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER 
- * DEALINGS IN THE SOFTWARE.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT
+ * NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+ * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 package de.geeksfactory.opacclient;
 
@@ -33,64 +30,64 @@ import android.net.NetworkInfo;
 import android.net.Uri;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
-import android.support.v4.app.ActivityCompat;
 import android.util.Log;
 
-import org.acra.ACRA;
-import org.acra.ACRAConfiguration;
-import org.acra.annotation.ReportsCrashes;
+import org.joda.time.DateTime;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 
-import de.geeksfactory.opacclient.apis.Adis;
-import de.geeksfactory.opacclient.apis.BiBer1992;
-import de.geeksfactory.opacclient.apis.Bibliotheca;
-import de.geeksfactory.opacclient.apis.Heidi;
-import de.geeksfactory.opacclient.apis.IOpac;
+import androidx.annotation.NonNull;
+import androidx.core.app.ActivityCompat;
+import androidx.multidex.MultiDex;
 import de.geeksfactory.opacclient.apis.OpacApi;
-import de.geeksfactory.opacclient.apis.Pica;
-import de.geeksfactory.opacclient.apis.Primo;
-import de.geeksfactory.opacclient.apis.SISIS;
-import de.geeksfactory.opacclient.apis.SRU;
-import de.geeksfactory.opacclient.apis.TestApi;
-import de.geeksfactory.opacclient.apis.TouchPoint;
-import de.geeksfactory.opacclient.apis.VuFind;
-import de.geeksfactory.opacclient.apis.WebOpacNet;
-import de.geeksfactory.opacclient.apis.WinBiap;
-import de.geeksfactory.opacclient.apis.Zones22;
 import de.geeksfactory.opacclient.frontend.AccountListActivity;
+import de.geeksfactory.opacclient.frontend.LibraryListActivity;
 import de.geeksfactory.opacclient.frontend.MainActivity;
 import de.geeksfactory.opacclient.frontend.MainPreferenceActivity;
 import de.geeksfactory.opacclient.frontend.SearchResultListActivity;
-import de.geeksfactory.opacclient.frontend.WelcomeActivity;
 import de.geeksfactory.opacclient.i18n.AndroidStringProvider;
+import de.geeksfactory.opacclient.networking.AndroidHttpClientFactory;
 import de.geeksfactory.opacclient.objects.Account;
 import de.geeksfactory.opacclient.objects.Library;
+import de.geeksfactory.opacclient.reminder.SyncAccountJob;
 import de.geeksfactory.opacclient.searchfields.SearchField;
 import de.geeksfactory.opacclient.searchfields.SearchQuery;
 import de.geeksfactory.opacclient.storage.AccountDataSource;
+import de.geeksfactory.opacclient.storage.PreferenceDataSource;
 import de.geeksfactory.opacclient.storage.StarContentProvider;
+import de.geeksfactory.opacclient.utils.DebugTools;
 import de.geeksfactory.opacclient.utils.ErrorReporter;
+import de.geeksfactory.opacclient.utils.GooglePlayTools;
+import de.geeksfactory.opacclient.utils.Utils;
+import de.geeksfactory.opacclient.webservice.LibraryConfigUpdateService;
+import de.geeksfactory.opacclient.webservice.UpdateHandler;
+import de.geeksfactory.opacclient.webservice.WebserviceReportHandler;
+import io.sentry.Sentry;
+import io.sentry.SentryUncaughtExceptionHandler;
+import io.sentry.android.AndroidSentryClientFactory;
 
-@ReportsCrashes(formKey = "", mailTo = "info@opacapp.de",
-        mode = org.acra.ReportingInteractionMode.NOTIFICATION,
-        sendReportsInDevMode = false,
-        resToastText = R.string.crash_toast_text)
 public class OpacClient extends Application {
 
     public static final String PREF_SELECTED_ACCOUNT = "selectedAccount";
     public static final String PREF_HOME_BRANCH_PREFIX = "homeBranch_";
     public static final String ASSETS_BIBSDIR = "bibs";
+    public static final String SENTRY_LIBRARY = "library";
+    public static final String SENTRY_DATA_VERSION = "data_version";
+    public static final String SENTRY_PACKAGE = "package";
     public static int NOTIF_ID = 1;
     public static int BROADCAST_REMINDER = 2;
     public static Context context;
@@ -176,7 +173,8 @@ public class OpacClient extends Application {
     }
 
     public void addFirstAccount(Activity activity) {
-        Intent intent = new Intent(activity, WelcomeActivity.class);
+        Intent intent = new Intent(activity, LibraryListActivity.class);
+        intent.putExtra(LibraryListActivity.EXTRA_WELCOME, true);
         activity.startActivity(intent);
         activity.finish();
     }
@@ -204,58 +202,15 @@ public class OpacClient extends Application {
         return (networkInfo != null && networkInfo.isConnected());
     }
 
-    public OpacApi getNewApi(Library lib) {
-        OpacApi newApiInstance;
-        if (lib.getApi().equals("bond26") || lib.getApi().equals("bibliotheca"))
-        // Backwardscompatibility
-        {
-            newApiInstance = new Bibliotheca();
-        } else if (lib.getApi().equals("oclc2011")
-                || lib.getApi().equals("sisis"))
-        // Backwards compatibility
-        {
-            newApiInstance = new SISIS();
-        } else if (lib.getApi().equals("zones22")) {
-            newApiInstance = new Zones22();
-        } else if (lib.getApi().equals("biber1992")) {
-            newApiInstance = new BiBer1992();
-        } else if (lib.getApi().equals("pica")) {
-            newApiInstance = new Pica();
-        } else if (lib.getApi().equals("iopac")) {
-            newApiInstance = new IOpac();
-        } else if (lib.getApi().equals("adis")) {
-            newApiInstance = new Adis();
-        } else if (lib.getApi().equals("sru")) {
-            newApiInstance = new SRU();
-        } else if (lib.getApi().equals("primo")) {
-            newApiInstance = new Primo();
-        } else if (lib.getApi().equals("vufind")) {
-            newApiInstance = new VuFind();
-        } else if (lib.getApi().equals("webopac.net")) {
-            newApiInstance = new WebOpacNet();
-        } else if (lib.getApi().equals("winbiap")) {
-            newApiInstance = new WinBiap();
-        } else if (lib.getApi().equals("heidi")) {
-            newApiInstance = new Heidi();
-        } else if (lib.getApi().equals("touchpoint")) {
-            newApiInstance = new TouchPoint();
-        } else if (lib.getApi().equals("test")) {
-            if (BuildConfig.DEBUG) {
-                newApiInstance = new TestApi();
-            } else {
-                return null;
-            }
-        } else {
-            return null;
-        }
-        newApiInstance.init(lib);
-        newApiInstance.setStringProvider(new AndroidStringProvider());
+    public OpacApi getNewApi(Library lib) throws LibraryRemovedException {
+        if (!lib.isActive()) throw new LibraryRemovedException();
         currentLang = getResources().getConfiguration().locale.getLanguage();
-        newApiInstance.setLanguage(currentLang);
-        return newApiInstance;
+        return OpacApiFactory
+                .create(lib, new AndroidStringProvider(), new AndroidHttpClientFactory(),
+                        currentLang, new WebserviceReportHandler());
     }
 
-    private OpacApi initApi(Library lib) {
+    private OpacApi initApi(Library lib) throws LibraryRemovedException {
         api = getNewApi(lib);
         return api;
     }
@@ -266,7 +221,7 @@ public class OpacClient extends Application {
         library = null;
     }
 
-    public OpacApi getApi() {
+    public OpacApi getApi() throws LibraryRemovedException {
         if (account != null && api != null) {
             if (sp.getLong(PREF_SELECTED_ACCOUNT, 0) == account.getId()
                     && getResources().getConfiguration().locale.getLanguage()
@@ -285,37 +240,61 @@ public class OpacClient extends Application {
             }
         }
         AccountDataSource data = new AccountDataSource(this);
-        data.open();
         account = data.getAccount(sp.getLong(PREF_SELECTED_ACCOUNT, 0));
-        data.close();
         return account;
     }
 
     public void setAccount(long id) {
-        sp.edit().putLong(OpacClient.PREF_SELECTED_ACCOUNT, id).commit();
+        sp.edit().putLong(OpacClient.PREF_SELECTED_ACCOUNT, id).apply();
         resetCache();
         if (getLibrary() != null && !BuildConfig.DEBUG) {
-            ACRA.getErrorReporter().putCustomData("library",
-                    getLibrary().getIdent());
+            Sentry.getContext().addTag(SENTRY_LIBRARY, getLibrary().getIdent());
         }
     }
 
     public Library getLibrary(String ident) throws IOException, JSONException {
-        String line;
+        String filename = ident + ".json";
+        String json;
 
-        StringBuilder builder = new StringBuilder();
-        InputStream fis = getAssets().open(
-                ASSETS_BIBSDIR + "/" + ident + ".json");
+        File filesDir = getLibrariesDir();
+        PreferenceDataSource prefs = getPreferenceDataSource();
 
-        BufferedReader reader = new BufferedReader(new InputStreamReader(fis,
-                "utf-8"));
-        while ((line = reader.readLine()) != null) {
-            builder.append(line);
+        if (fileExists(filesDir, filename) && (
+                !prefs.hasBundledConfiguration() ||
+                        prefs.getLastLibraryConfigUpdateVersion() == BuildConfig.VERSION_CODE)) {
+            // only use files if they were downloaded using the current app version
+            json = Utils.readStreamToString(openFile(filesDir, filename));
+        } else {
+            json = Utils.readStreamToString(getAssets().open(ASSETS_BIBSDIR + "/" + filename));
         }
-
-        fis.close();
-        String json = builder.toString();
         return Library.fromJSON(ident, new JSONObject(json));
+    }
+
+    @NonNull
+    PreferenceDataSource getPreferenceDataSource() {
+        return new PreferenceDataSource(this);
+    }
+
+    InputStream openFile(File filesDir, String filename) throws FileNotFoundException {
+        File file = new File(filesDir, filename);
+        return new FileInputStream(file);
+    }
+
+    boolean fileExists(File filesDir, String filename) {
+        File file = new File(filesDir, filename);
+        return file.exists();
+    }
+
+    @NonNull
+    protected File getFile(File filesDir, String filename) {
+        return new File(filesDir, filename);
+    }
+
+    @NonNull
+    protected File getLibrariesDir() {
+        File filesDir = new File(getFilesDir(), LibraryConfigUpdateService.LIBRARIES_DIR);
+        filesDir.mkdirs();
+        return filesDir;
     }
 
     public Library getLibrary() {
@@ -346,40 +325,31 @@ public class OpacClient extends Application {
             throws IOException {
         AssetManager assets = getAssets();
         String[] files = assets.list(ASSETS_BIBSDIR);
-        int num = files.length;
+        String[] additionalFiles = getLibrariesDir().list();
+        Set<String> allFiles = new HashSet<>();
+        Collections.addAll(allFiles, files);
+        Collections.addAll(allFiles, additionalFiles);
+        int num = allFiles.size();
 
         List<Library> libs = new ArrayList<>();
 
-        StringBuilder builder;
-        BufferedReader reader;
-        InputStream fis;
-        String line;
-        String json;
-
-        for (int i = 0; i < num; i++) {
-            builder = new StringBuilder();
-            fis = assets.open(ASSETS_BIBSDIR + "/" + files[i]);
-
-            reader = new BufferedReader(new InputStreamReader(fis, "utf-8"));
-            while ((line = reader.readLine()) != null) {
-                builder.append(line);
-            }
-
-            fis.close();
-            json = builder.toString();
+        int i = 0;
+        for (String file : allFiles) {
             try {
-                Library lib = Library.fromJSON(files[i].replace(".json", ""),
-                        new JSONObject(json));
-                if (!lib.getApi().equals("test") || BuildConfig.DEBUG) libs.add(lib);
+                Library lib =
+                        getLibrary(file.substring(0, file.length() - ".json".length()));
+                if ((!lib.getApi().equals("test") || BuildConfig.DEBUG) && lib.isActive()) {
+                    libs.add(lib);
+                }
             } catch (JSONException e) {
-                Log.w("JSON library files", "Failed parsing library "
-                        + files[i]);
+                Log.w("JSON library files", "Failed parsing library " + file);
                 e.printStackTrace();
             }
-            if (callback != null && i % 100 == 0 && i > 0) {
-                // reporting progress for every 100 loaded files should be enough
+            if (callback != null && i % 10 == 0 && i > 0) {
+                // reporting progress for every 10 loaded files should be enough
                 callback.publishProgress(((double) i) / num);
             }
+            i++;
         }
 
         return libs;
@@ -391,28 +361,35 @@ public class OpacClient extends Application {
     }
 
     @Override
+    protected void attachBaseContext(Context base) {
+        super.attachBaseContext(base);
+        MultiDex.install(this);
+    }
+
+    @Override
     public void onCreate() {
         super.onCreate();
+
+        GooglePlayTools.updateSecurityProvider(getApplicationContext());
+
         sp = PreferenceManager.getDefaultSharedPreferences(this);
 
         if (!BuildConfig.DEBUG) {
-            ACRAConfiguration config = ACRA.getNewDefaultConfig(this);
-            config.setResToastText(R.string.crash_toast_text);
-            config.setResDialogText(R.string.crash_dialog_text);
-            config.setResToastText(R.string.crash_toast_text);
-            config.setResNotifTickerText(R.string.crash_notif_ticker_text);
-            config.setResNotifTitle(R.string.crash_notif_title);
-            config.setResNotifText(R.string.crash_notif_text);
-            config.setResNotifIcon(android.R.drawable.stat_notify_error);
-            config.setResDialogText(R.string.crash_dialog_text);
-            ACRA.setConfig(config);
-            ACRA.init(this);
-
+            Sentry.init(new AndroidSentryClientFactory(this));
             if (getLibrary() != null) {
-                ACRA.getErrorReporter().putCustomData("library",
-                        getLibrary().getIdent());
+                Sentry.getContext().addTag(SENTRY_LIBRARY, getLibrary().getIdent());
             }
+            DateTime lastUpdate = new PreferenceDataSource(getApplicationContext())
+                    .getLastLibraryConfigUpdate();
+            Sentry.getContext().addExtra(
+                    SENTRY_DATA_VERSION, lastUpdate != null ? lastUpdate.toString() : "null");
+            Sentry.getContext().addExtra(
+                    SENTRY_PACKAGE, getPackageName()
+            );
+            SentryUncaughtExceptionHandler.setup();
         }
+
+        DebugTools.init(this);
 
         OpacClient.context = getApplicationContext();
 
@@ -422,6 +399,9 @@ public class OpacClient extends Application {
         } catch (NameNotFoundException e) {
             e.printStackTrace();
         }
+
+        // Schedule alarms
+        SyncAccountJob.scheduleJob(this);
     }
 
     public boolean getSlidingMenuEnabled() {
@@ -441,4 +421,14 @@ public class OpacClient extends Application {
         public void publishProgress(double progress);
     }
 
+    public static class LibraryRemovedException extends Exception {
+    }
+
+    public UpdateHandler getUpdateHandler() {
+        return new UpdateHandler();
+    }
+
+    public boolean promotePlusApps() {
+        return true;
+    }
 }

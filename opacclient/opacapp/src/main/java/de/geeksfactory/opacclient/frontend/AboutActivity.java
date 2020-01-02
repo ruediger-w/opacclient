@@ -22,11 +22,10 @@
 package de.geeksfactory.opacclient.frontend;
 
 import android.os.Bundle;
-import android.support.v7.app.AppCompatActivity;
-import android.support.v7.widget.Toolbar;
 
-import com.github.machinarius.preferencefragment.PreferenceFragment;
-
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.Toolbar;
+import androidx.preference.PreferenceFragmentCompat;
 import de.geeksfactory.opacclient.R;
 
 public class AboutActivity extends AppCompatActivity {
@@ -42,7 +41,7 @@ public class AboutActivity extends AppCompatActivity {
                                    .commit();
     }
 
-    protected PreferenceFragment getNewAboutFragment() {
+    protected PreferenceFragmentCompat getNewAboutFragment() {
         return new AboutFragment();
     }
 }
